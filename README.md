@@ -7,7 +7,7 @@ The code is currently:
 - messy
 - doesn't raise an error
 - raises warnings
-- doesn't work (i.e. the agent is NOT training)
+- doesn't work (i.e. the agent only learned once)
 - has broken Reward stuff (plot shows the agent is getting a reward of no more than 1, though it should get +0.01 for each step alone)
 
 Temporary stuff:
