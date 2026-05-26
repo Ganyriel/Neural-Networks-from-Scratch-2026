@@ -13,3 +13,4 @@ The code is currently:
 Temporary stuff:
 - rewards are set wrong (for fixing the errors)
 - Frozen Lake doesn't have holes (for fixing errors)
+- The file uses numpy instead of CuPy (will be changed after bugs are fixed)
