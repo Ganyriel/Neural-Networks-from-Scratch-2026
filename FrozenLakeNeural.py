@@ -15,11 +15,10 @@ class Linear:
     """A fully connected layer implemented with NumPy arrays."""
 
     def __init__(
-        self, in_features: int, out_features: int, batch_size: int, lr: float = 0.1
+        self, in_features: int, out_features: int, batch_size: int
     ) -> None:
         super(Linear, self).__init__()
         self.batch_size = batch_size
-        self.lr = lr
         self.weight = np.random.normal(size=(in_features, out_features)) * np.sqrt(
             1.0 / in_features
         )
@@ -43,9 +42,9 @@ class Linear:
         self.grad_bias = np.sum(grad_output, axis=0)
         return grad_input
 
-    def update(self) -> None:
-        self.weight = self.weight - self.lr * self.grad_weight / self.batch_size
-        self.bias = self.bias - self.lr * self.grad_bias / self.batch_size
+    def update(self, lr) -> None:
+        self.weight = self.weight - lr * self.grad_weight / self.batch_size
+        self.bias = self.bias - lr * self.grad_bias / self.batch_size
 
     def get_weights(self):
         # returns the weights and bias
@@ -86,17 +85,17 @@ def relu(x):
 
 # Define model
 class NN:
-    def __init__(self, in_states, h1_nodes, out_actions, batch_size: int, lr: float):
+    def __init__(self, in_states, h1_nodes, out_actions, batch_size: int):
         super(NN, self).__init__()
         #super().__init__()
 
         # Define network layers
         self.in_features = in_states
-        self.l1 = Linear(in_states, h1_nodes, batch_size, lr)   # first fully connected layer
+        self.l1 = Linear(in_states, h1_nodes, batch_size)   # Linear layer
         self.s1 = Sigmoid(h1_nodes, batch_size) # Sigmoid layer
-        self.l2 = Linear(h1_nodes, h1_nodes, batch_size, lr)   # first fully connected layer
+        self.l2 = Linear(h1_nodes, h1_nodes, batch_size)   # Linear layer
         self.s2 = Sigmoid(h1_nodes, batch_size) # Sigmoid layer
-        self.l3 = Linear(h1_nodes, out_actions, batch_size, lr) # ouptut layer w
+        self.l3 = Linear(h1_nodes, out_actions, batch_size) # Ouptut layer 
 
 
     def forward(self, x: np.ndarray) -> np.ndarray:
@@ -120,10 +119,10 @@ class NN:
         x = self.s1.backward(x)
         x = self.l1.backward(x)
     
-    def update(self) -> None:
-        self.l1.update()
-        self.l2.update()
-        self.l3.update()
+    def update(self,lr) -> None:
+        self.l1.update(lr)
+        self.l2.update(lr)
+        self.l3.update(lr)
 
     def get_weights(self):
         # Returns weights of the neurons
@@ -190,7 +189,7 @@ class ReplayMemory():
 # FrozeLake Deep Q-Learning
 class FrozenLakeDQL():
     # Hyperparameters (adjustable)
-    learning_rate_a = 0.01         # learning rate (alpha), default: 0.001
+    learning_rate_a = 0.1        # learning rate (alpha), default: 0.001
     discount_factor_g = 0.9         # discount rate (gamma), default: 0.9  
     network_sync_rate = 10          # number of steps the agent takes before syncing the policy and target network, default: 10
     replay_memory_size = 1_000       # size of replay memory, default: 1_000
@@ -219,9 +218,9 @@ class FrozenLakeDQL():
         memory = ReplayMemory(self.replay_memory_size)
 
         # Create policy and target network. Number of nodes in the hidden layer can be adjusted.
-        policy_dqn = NN(in_states=num_states, h1_nodes=num_states, out_actions=num_actions, batch_size = self.mini_batch_size, lr = self.learning_rate_a)
+        policy_dqn = NN(in_states=num_states, h1_nodes=num_states, out_actions=num_actions, batch_size = self.mini_batch_size)
 
-        target_dqn = NN(in_states=num_states, h1_nodes=num_states, out_actions=num_actions, batch_size = self.mini_batch_size, lr = self.learning_rate_a)
+        target_dqn = NN(in_states=num_states, h1_nodes=num_states, out_actions=num_actions, batch_size = self.mini_batch_size)
 
         # Make the target and policy networks the same (copy weights/biases from one network to the other)
         target_dqn.set_weights(policy_dqn.get_weights())
@@ -246,6 +245,10 @@ class FrozenLakeDQL():
         for i in range(episodes):
             if(i%100 == 0):
                 print("Epoch: ", i)
+            
+            if(i >= np.floor(episodes/5) and i%3000 == 0):    # TODO arbitrary number
+                self.learning_rate_a = self.learning_rate_a/2 
+                print("Learning rate decreased to: ", self.learning_rate_a)
 
 
             state = env.reset()[0]  # Initialize to state 0
@@ -283,7 +286,7 @@ class FrozenLakeDQL():
             # Check if enough experience has been collected and if at least 1 reward has been collected
             if len(memory)>self.mini_batch_size and np.sum(rewards_per_episode)!=0 and np.max(rewards_per_episode) > 0:
                 mini_batch = memory.sample(self.mini_batch_size)
-                loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn))        
+                loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn, self.learning_rate_a))        
 
                 # Decay epsilon
                 epsilon = max(epsilon - 1/episodes, 0)
@@ -330,7 +333,7 @@ class FrozenLakeDQL():
         plt.savefig('frozen_lake_dql.png')
 
     # Optimize policy network
-    def optimize(self, mini_batch, policy_dqn, target_dqn):
+    def optimize(self, mini_batch, policy_dqn, target_dqn, learning_rate):
 
         # Get number of input nodes
         num_states = policy_dqn.in_features
@@ -345,7 +348,12 @@ class FrozenLakeDQL():
             if terminated: 
                 # Agent either reached goal (reward=1) or fell into hole (reward=0)
                 # When in a terminated state, target q value should be set to the reward.
-                target = torch.FloatTensor([reward])
+
+                #target = np.array(reward)
+                target = reward
+                #target = torch.FloatTensor([reward])
+                #print(target)
+                #raise ValueError("Stopp for testing")
             else:
                 # Calculate target q value 
                 target = reward + self.discount_factor_g * target_dqn.forward(self.state_to_dqn_input(new_state, num_states)).max()
@@ -380,7 +388,7 @@ class FrozenLakeDQL():
         policy_dqn.forward(inp.T) # TODO Sketchy
 
         policy_dqn.backward(gradient)
-        policy_dqn.update()
+        policy_dqn.update(learning_rate)
 
         return loss
         
@@ -392,8 +400,8 @@ class FrozenLakeDQL():
     Parameters: state=1, num_states=16
     Return: tensor([0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.])
     '''
-    def state_to_dqn_input(self, state:int, num_states:int)->torch.Tensor:
-        input_tensor = torch.zeros(num_states)
+    def state_to_dqn_input(self, state:int, num_states:int):
+        input_tensor = np.zeros(num_states)
         input_tensor[state] = 1
         return input_tensor
 
@@ -407,7 +415,7 @@ class FrozenLakeDQL():
         num_actions = env.action_space.n
 
         # Load learned policy
-        policy_dqn = NN(in_states=num_states, h1_nodes=num_states, out_actions=num_actions, batch_size = self.mini_batch_size, lr = self.learning_rate_a) 
+        policy_dqn = NN(in_states=num_states, h1_nodes=num_states, out_actions=num_actions, batch_size = self.mini_batch_size) 
 
         
         # policy_dqn.eval()    # TODO ? switch model to evaluation mode
@@ -462,5 +470,5 @@ if __name__ == '__main__':
 
     frozen_lake = FrozenLakeDQL()
     is_slippery = False
-    frozen_lake.train(10_000, is_slippery=is_slippery)
+    frozen_lake.train(15_000, is_slippery=is_slippery)
     frozen_lake.test(10, is_slippery=is_slippery)
