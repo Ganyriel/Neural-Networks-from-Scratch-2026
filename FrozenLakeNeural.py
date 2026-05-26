@@ -30,20 +30,14 @@ class Linear:
 
     def forward(self, input: np.ndarray) -> np.ndarray:
         self.input = input
-        # print("input shape: ", input.shape)
-        # print("weight shape: ", self.weight.shape)
         output = input @ self.weight + self.bias
         return output
 
     def backward(self, grad_output: np.ndarray) -> np.ndarray:
         
-        # print("grad_output shape: ", grad_output.shape)
-        # print("np.transpose(self.weight): ", np.transpose(self.weight).shape)
+        # Reshape in case the input is flattened
         grad_output = grad_output.reshape(-1, np.transpose(self.weight).shape[0])  
-        # print("grad_output shape: ", grad_output.shape)
-        # grad_input = np.matmul(grad_output,np.transpose(self.weight))
-        # print("np.transpose(self.input).shape: ", np.transpose(self.input).shape)
-
+        
         grad_input = grad_output @ np.transpose(self.weight)
         self.grad_weight = np.transpose(self.input) @ grad_output
         self.grad_bias = np.sum(grad_output, axis=0)
@@ -54,14 +48,11 @@ class Linear:
         self.bias = self.bias - self.lr * self.grad_bias / self.batch_size
 
     def get_weights(self):
-        # print("self.weight.shape: ", self.weight.shape)
-        # print("self.bias.shape: ", self.bias.shape)
-        # return np.concatenate([self.weight, self.bias.reshape(self.bias.shape[0], -1)], axis=1)
-        # return np.concatenate([self.weight, self.bias])
+        # returns the weights and bias
         return [self.weight, self.bias]
 
     def set_weights(self, new_weights):
-        # AAA
+        # sets weights and bias of the neural network
         self.weight = new_weights[0]
         self.bias = new_weights[1]
 
@@ -89,7 +80,6 @@ class Sigmoid:
 
 
 # TODO MAYBE RELU AS A LAYER?
-
 def relu(x):
     return np.maximum(x,0)
   
@@ -114,19 +104,13 @@ class NN:
         x = np.array(x)
         x = x.reshape(x.shape[0], -1)  # Flatten the input
         x = x.T # TODO THAT DOESNT SEEM RIGHT BUT IT SEEMS TO WORK
-        x = self.l1.forward(x)
+        x = self.l1.forward(x)    # Linear layer
         x = self.s1.forward(x)    # Apply sigmoid activation function
-        x = self.l2.forward(x)
+        x = self.l2.forward(x)    # Linear layer
         x = self.s2.forward(x)    # Apply sigmoid activation function
-        x = self.l3.forward(x)
-        # print("before x: ", x)
-        # print("before x.shape: ", x.shape)
-        
-
+        x = self.l3.forward(x)    # Linear layer
         x = Softmax(x)         # Apply softmax
 
-        # print("x: ", x)
-        # print("x.shape: ", x.shape)
         return x[0]
     
     def backward(self, x: np.ndarray) -> None:
@@ -143,14 +127,14 @@ class NN:
 
     def get_weights(self):
         # Returns weights of the neurons
-        # TODO testing
-        return [self.l1.get_weights(), self.l2.get_weights()]
+        return [self.l1.get_weights(), self.l2.get_weights(), self.l3.get_weights()]
 
     def set_weights(self, w):
         # Sets weights of the neurons
         # TODO testing
         self.l1.set_weights(w[0])
         self.l2.set_weights(w[1])
+        self.l3.set_weights(w[2])
 
     def print_weights(self):
         # Prints weights of the neurons
@@ -206,7 +190,7 @@ class ReplayMemory():
 # FrozeLake Deep Q-Learning
 class FrozenLakeDQL():
     # Hyperparameters (adjustable)
-    learning_rate_a = 0.1         # learning rate (alpha), default: 0.001
+    learning_rate_a = 0.01         # learning rate (alpha), default: 0.001
     discount_factor_g = 0.9         # discount rate (gamma), default: 0.9  
     network_sync_rate = 10          # number of steps the agent takes before syncing the policy and target network, default: 10
     replay_memory_size = 1_000       # size of replay memory, default: 1_000
@@ -224,9 +208,9 @@ class FrozenLakeDQL():
     def train(self, episodes, render=False, is_slippery=False):
         # Create FrozenLake instance
         #env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=is_slippery, render_mode='human' if render else None, reward_schedule=(1, 0, -0.01))
-        env = gym.make('FrozenLake-v1', desc = ["SFFF","FFFF","FFFF","FFFG"], is_slippery=is_slippery, render_mode='human' if render else None, reward_schedule=(1, 0, 0.01))
+        env = gym.make('FrozenLake-v1', desc = ["SFFF","FFFF","FFFF","FFFG"], is_slippery=is_slippery, render_mode='human' if render else None, reward_schedule=(1, 0, -0.01))
 
-            
+        loss_list = []   
 
         num_states = env.observation_space.n
         num_actions = env.action_space.n
@@ -277,8 +261,6 @@ class FrozenLakeDQL():
                     action = env.action_space.sample() # actions: 0=left,1=down,2=right,3=up
                 else:
                     # select best action   
-                    # TODO?         
-                    
                     action = policy_dqn.forward(self.state_to_dqn_input(state, num_states)).argmax().item()
 
                 # Execute action
@@ -298,19 +280,17 @@ class FrozenLakeDQL():
             if reward != 0:
                 rewards_per_episode[i] = reward
 
-            # print("Round")
             # Check if enough experience has been collected and if at least 1 reward has been collected
-            if len(memory)>self.mini_batch_size and np.sum(rewards_per_episode)!=0:
+            if len(memory)>self.mini_batch_size and np.sum(rewards_per_episode)!=0 and np.max(rewards_per_episode) > 0:
                 mini_batch = memory.sample(self.mini_batch_size)
-                # print("Reached")
-                self.optimize(mini_batch, policy_dqn, target_dqn)        
+                loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn))        
 
                 # Decay epsilon
-                # epsilon = max(epsilon - 1/episodes, 0)
-                epsilon = max(epsilon - 1/episodes/2, 0)
+                epsilon = max(epsilon - 1/episodes, 0)
+                # epsilon = max(epsilon - 1/episodes/2, 0)
 
                 epsilon_history.append(epsilon)
-                # print("Reached this point")
+
                 # Copy policy network to target network after a certain number of steps
                 if step_count > self.network_sync_rate:
                     target_dqn.set_weights(policy_dqn.get_weights())
@@ -320,8 +300,7 @@ class FrozenLakeDQL():
         env.close()
 
         # Save policy
-        #torch.save(policy_dqn.state_dict(), "frozen_lake_dql.pt")
-        # np.save("policy_dqn", policy_dqn.get_weights())
+
         with open('policy_dqn.pkl', 'wb') as file:
             pickle.dump(policy_dqn.get_weights(), file)
 
@@ -331,17 +310,22 @@ class FrozenLakeDQL():
         plt.figure(1)
 
         # Plot average rewards (Y-axis) vs episodes (X-axis)
-        sum_rewards = np.zeros(episodes)
+        # sum_rewards = np.zeros(episodes)
         #for x in range(episodes):
         #    sum_rewards[x] = np.sum(rewards_per_episode[max(0, x-100):(x+1)])
-        plt.subplot(121) # plot on a 1 row x 2 col grid, at cell 1
+        plt.subplot(221) # plot on a 2 row x 2 col grid, at cell 1
         #plt.plot(sum_rewards)
         plt.plot(rewards_per_episode)
+
+        print("Reached the goal this many times: ", (rewards_per_episode > 0).sum())
         
         # Plot epsilon decay (Y-axis) vs episodes (X-axis)
-        plt.subplot(122) # plot on a 1 row x 2 col grid, at cell 2
+        plt.subplot(222) # plot on a 2 row x 2 col grid, at cell 2
         plt.plot(epsilon_history)
         
+        plt.subplot(223)
+        plt.plot(loss_list)
+
         # Save plots
         plt.savefig('frozen_lake_dql.png')
 
@@ -351,6 +335,7 @@ class FrozenLakeDQL():
         # Get number of input nodes
         num_states = policy_dqn.in_features
         
+       
 
         current_q_list = []
         target_q_list = []
@@ -363,63 +348,43 @@ class FrozenLakeDQL():
                 target = torch.FloatTensor([reward])
             else:
                 # Calculate target q value 
-                # print("reward: ", reward)
-                # print("self.discount_factor_g: ", self.discount_factor_g)
-                # print("target_dqn.forward(self.state_to_dqn_input(new_state, num_states)).max()", target_dqn.forward(self.state_to_dqn_input(new_state, num_states)).max())
-
-
                 target = reward + self.discount_factor_g * target_dqn.forward(self.state_to_dqn_input(new_state, num_states)).max()
             
 
-            # AAA
-            # TODO AM I DOING IT RIGHT?
+  
             # Get the current set of Q values
             current_q = policy_dqn.forward(self.state_to_dqn_input(state, num_states))
-            # print("current_q.shape: ", current_q.shape)
             current_q_list.append(current_q)
             
             # Get the target set of Q values
             target_q = target_dqn.forward(self.state_to_dqn_input(state, num_states)) #[0]
-            # print("target_q: ", target_q)
 
             # Adjust the specific action to the target that was just calculated
             target_q[action] = target
             target_q_list.append(target_q)
                 
         # Compute loss for the whole minibatch
-        #loss = self.loss_fn(torch.stack(current_q_list), torch.stack(target_q_list))
-        # print("current_q_list: ", current_q_list)
-        # loss = compute_loss(torch.stack(current_q_list), torch.stack(target_q_list))
-        loss = compute_loss(np.concatenate(current_q_list), np.concatenate(target_q_list))
+        
+        loss = compute_loss(np.concatenate(target_q_list), np.concatenate(current_q_list))
         
 
-        #AAA
 
-        # Optimize the model
-
-
-        # self.optimizer.zero_grad()
-        
-        #gradient = compute_gradient(torch.stack(target_q_list), torch.stack(current_q_list))
+        # Optimize the model 
         gradient = compute_gradient(np.concatenate(target_q_list), np.concatenate(current_q_list))
-        # print("np.concatenate(target_q_list).shape: ", np.concatenate(target_q_list).shape)
-        # print("np.concatenate(current_q_list).shape: ", np.concatenate(current_q_list).shape)
-        # print("Gradient: ", gradient)
-        # print("Gradient.shape: ", gradient.shape)
+        
 
         # To save input in Neural Network
         inp = [np.array(self.state_to_dqn_input(state, num_states)) for state, action, new_state, reward, terminated in mini_batch]
         inp = np.vstack(inp)
-        # print("inp: ", inp)
-        # print("inp.shape: ", inp.shape)
-        policy_dqn.forward(inp.T)
+        
+        policy_dqn.forward(inp.T) # TODO Sketchy
 
         policy_dqn.backward(gradient)
         policy_dqn.update()
-        
-        # loss.backward()
-        # self.optimizer.step()
 
+        return loss
+        
+   
     '''
     Converts an state (int) to a tensor representation.
     For example, the FrozenLake 4x4 map has 4x4=16 states numbered from 0 to 15. 
@@ -443,10 +408,9 @@ class FrozenLakeDQL():
 
         # Load learned policy
         policy_dqn = NN(in_states=num_states, h1_nodes=num_states, out_actions=num_actions, batch_size = self.mini_batch_size, lr = self.learning_rate_a) 
-        # raise ValueError('How did we get here?')
 
-        # policy_dqn.load_state_dict(torch.load("frozen_lake_dql.pt"))
-        # policy_dqn.eval()    # switch model to evaluation mode
+        
+        # policy_dqn.eval()    # TODO ? switch model to evaluation mode
         with open('policy_dqn.pkl', 'rb') as file:
             policy_model = pickle.load(file)
         policy_dqn.set_weights(policy_model)
@@ -472,7 +436,7 @@ class FrozenLakeDQL():
 
     # Print DQN: state, best action, q values
     def print_dqn(self, dqn):
-        # TODO NOT COMPATIBLE
+        # TODO NOT COMPATIBLE YET, BUT IDK IF NEEDED
 
         # Get number of input nodes
         num_states = dqn.fc1.in_features
@@ -498,5 +462,5 @@ if __name__ == '__main__':
 
     frozen_lake = FrozenLakeDQL()
     is_slippery = False
-    frozen_lake.train(2_000, is_slippery=is_slippery)
+    frozen_lake.train(10_000, is_slippery=is_slippery)
     frozen_lake.test(10, is_slippery=is_slippery)
