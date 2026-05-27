@@ -108,7 +108,7 @@ class NN:
         x = self.l2.forward(x)    # Linear layer
         x = self.s2.forward(x)    # Apply sigmoid activation function
         x = self.l3.forward(x)    # Linear layer
-        x = Softmax(x)         # Apply softmax
+        x = softmax(x)         # Apply softmax
 
         return x[0]
     
@@ -204,12 +204,12 @@ class FrozenLakeDQL():
     ACTIONS = ['L','D','R','U']     # for printing 0,1,2,3 => L(eft),D(own),R(ight),U(p)
 
     # Train the FrozeLake environment
-    def train( episodes, render, is_slippery):
+    def train(self, episodes, render, is_slippery):
         # Create FrozenLake instance
         #env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=is_slippery, render_mode='human' if render else None, reward_schedule=(1, 0, -0.01))
-        render = False
+        
         is_slippery = False
-        #curr_render_mode = 'human' if render else None
+        curr_render_mode = 'human' if render else None
         env = gym.make(
             'FrozenLake-v1', 
             desc=["SFFF", "FFFF", "FFFF", "FFFG"], 
@@ -476,6 +476,7 @@ class FrozenLakeDQL():
 if __name__ == '__main__':
 
     frozen_lake = FrozenLakeDQL()
-    is_slippery = False
-    frozen_lake.train(15_000, is_slippery=is_slippery)
-    frozen_lake.test(10, is_slippery=is_slippery)
+    is_slippery_surface = False
+    rendered_for_humans = False
+    frozen_lake.train(15_000, render = rendered_for_humans, is_slippery=is_slippery_surface)
+    frozen_lake.test(10, is_slippery=is_slippery_surface)
