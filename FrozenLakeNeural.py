@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 from collections import deque
 import random
 import pickle
-import torch
+import time
+
 
 
 
@@ -475,9 +476,20 @@ class FrozenLakeDQL():
                 print() # Print a newline every 4 states
 
 if __name__ == '__main__':
-
+    # Initializing
+    start = time.time()
     frozen_lake = FrozenLakeDQL()
     is_slippery_surface = False
     rendered_for_humans = False
+
+    # Training 
     frozen_lake.train(15_000, render = rendered_for_humans, is_slippery=is_slippery_surface)
+
+    # Measuring time
+    end = time.time()
+    print("Time elapsed: ", end - start)
+
+    # Testing
     frozen_lake.test(10, is_slippery=is_slippery_surface)
+
+    
