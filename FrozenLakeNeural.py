@@ -227,9 +227,9 @@ class FrozenLakeDQL():
         memory = ReplayMemory(self.replay_memory_size)
 
         # Create policy and target network. Number of nodes in the hidden layer can be adjusted.
-        policy_dqn = NN(in_states=num_states, h1_nodes=num_states, out_actions=num_actions, batch_size = self.mini_batch_size)
+        policy_dqn = NN(in_states=num_states, h1_nodes=2* num_states, out_actions=num_actions, batch_size = self.mini_batch_size)
 
-        target_dqn = NN(in_states=num_states, h1_nodes=num_states, out_actions=num_actions, batch_size = self.mini_batch_size)
+        target_dqn = NN(in_states=num_states, h1_nodes=2* num_states, out_actions=num_actions, batch_size = self.mini_batch_size)
 
         # Make the target and policy networks the same (copy weights/biases from one network to the other)
         target_dqn.set_weights(policy_dqn.get_weights())
@@ -299,7 +299,7 @@ class FrozenLakeDQL():
 
                 # Decay epsilon
                 epsilon = max(epsilon - 1/episodes, 0)
-                # epsilon = max(epsilon - 1/episodes/2, 0)
+                # epsilon = max(epsilon - 1/episodes/2, 0) # maybe if we want bigger epsilon later
 
                 epsilon_history.append(epsilon)
 
@@ -346,8 +346,6 @@ class FrozenLakeDQL():
 
         # Get number of input nodes
         num_states = policy_dqn.in_features
-        
-       
 
         current_q_list = []
         target_q_list = []
@@ -357,12 +355,8 @@ class FrozenLakeDQL():
             if terminated: 
                 # Agent either reached goal (reward=1) or fell into hole (reward=0)
                 # When in a terminated state, target q value should be set to the reward.
-
-                #target = np.array(reward)
                 target = reward
-                #target = torch.FloatTensor([reward])
-                #print(target)
-                #raise ValueError("Stopp for testing")
+                
             else:
                 # Calculate target q value 
                 target = reward + self.discount_factor_g * target_dqn.forward(self.state_to_dqn_input(new_state, num_states)).max()
@@ -424,7 +418,7 @@ class FrozenLakeDQL():
         num_actions = env.action_space.n
 
         # Load learned policy
-        policy_dqn = NN(in_states=num_states, h1_nodes=num_states, out_actions=num_actions, batch_size = self.mini_batch_size) 
+        policy_dqn = NN(in_states=num_states, h1_nodes=2*num_states, out_actions=num_actions, batch_size = self.mini_batch_size) 
 
         
         # policy_dqn.eval()    # TODO ? switch model to evaluation mode
@@ -448,6 +442,9 @@ class FrozenLakeDQL():
 
                 # Execute action
                 state,reward,terminated,truncated,_ = env.step(action)
+
+                if (reward == 1):
+                    print("We did it!")
 
         env.close()
 
