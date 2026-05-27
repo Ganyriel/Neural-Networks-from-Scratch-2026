@@ -214,7 +214,8 @@ class FrozenLakeDQL():
             'FrozenLake-v1', 
             desc=["SFFF", "FFFF", "FFFF", "FFFG"], 
             is_slippery=is_slippery, 
-            render_mode=curr_render_mode
+            render_mode=curr_render_mode,
+            reward_schedule=(1, 0, -0.01)
         )
         loss_list = []   
 
