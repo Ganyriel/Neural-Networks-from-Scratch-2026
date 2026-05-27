@@ -146,7 +146,7 @@ class NN:
 # ---------------------------------------------------------
 # Utilities for training
 # ---------------------------------------------------------
-def Softmax(input: np.ndarray) -> np.ndarray:
+def softmax(input: np.ndarray) -> np.ndarray:
     """Compute the row-wise softmax of the input logits."""
     output = np.exp(input) / np.sum(np.exp(input), axis=1, keepdims=True)
     return output
@@ -196,7 +196,7 @@ class FrozenLakeDQL():
     mini_batch_size = 32            # size of the training data set sampled from the replay memory, default: 32
 
     # Neural Network stuff
-    def loss_fn(y_true, y_pred):
+    def loss_fn(self,y_true, y_pred):
         return np.square(y_true-y_pred).mean()   # NN Loss function. MSE=Mean Squared Error can be swapped to something else.
 
     optimizer = None                # NN Optimizer. Initialize later.
@@ -204,11 +204,18 @@ class FrozenLakeDQL():
     ACTIONS = ['L','D','R','U']     # for printing 0,1,2,3 => L(eft),D(own),R(ight),U(p)
 
     # Train the FrozeLake environment
-    def train(self, episodes, render=False, is_slippery=False):
+    def train( episodes, render, is_slippery):
         # Create FrozenLake instance
         #env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=is_slippery, render_mode='human' if render else None, reward_schedule=(1, 0, -0.01))
-        env = gym.make('FrozenLake-v1', desc = ["SFFF","FFFF","FFFF","FFFG"], is_slippery=is_slippery, render_mode='human' if render else None, reward_schedule=(1, 0, -0.01))
-
+        render = False
+        is_slippery = False
+        #curr_render_mode = 'human' if render else None
+        env = gym.make(
+            'FrozenLake-v1', 
+            desc=["SFFF", "FFFF", "FFFF", "FFFG"], 
+            is_slippery=is_slippery, 
+            render_mode=curr_render_mode
+        )
         loss_list = []   
 
         num_states = env.observation_space.n
@@ -427,7 +434,7 @@ class FrozenLakeDQL():
         # print('Policy (trained):')
         # self.print_dqn(policy_dqn)
 
-        for i in range(episodes):
+        for _ in range(episodes):
             state = env.reset()[0]  # Initialize to state 0
             terminated = False      # True when agent falls in hole or reached goal
             truncated = False       # True when agent takes more than 200 actions            
