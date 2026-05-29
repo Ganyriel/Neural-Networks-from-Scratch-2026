@@ -6,7 +6,7 @@ FrozenLakeNeural.py contains a Neural Network which is supposed to learn to play
 The code is currently:
 - a bit messy
 - doesn't raise an error
-- agent solves the puzzle only sometimes
+- agent solves the puzzle only sometimes (now with 70% of the times)
 
 
 Temporary stuff:
@@ -25,3 +25,5 @@ Possible tweakable stuff:
 Possible ToDos:
 - implement new activation function (relu instead of sigmoid maybe? Requires change to gradient)
 - implement different optimizers
+
+
