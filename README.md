@@ -5,9 +5,8 @@ Advanced Practical called "Neural Networks from Scratch"
 FrozenLakeNeural.py contains a Neural Network which is supposed to learn to play Frozen Lake without any Holes. 
 The code is currently:
 - a bit messy
-- doesn't raise an error
-- agent solves the puzzle only sometimes (now with 70% of the times)
-
+- agent solves the puzzle only sometimes (now (29.05) with 70% of the times)
+- MSE Loss has probably an error in the gradient
 
 Temporary stuff:
 - Frozen Lake doesn't have holes (for fixing errors)
@@ -15,15 +14,16 @@ Temporary stuff:
 
 
 Possible tweakable stuff:
-- hidden layer size (3 spots: 2 in training and 1 in testing)
+- hidden layer size
 - learning rate
 - learning rate change
 - rewards
 - batch_size
 - number of epochs
+- synchronization frequency
 
 Possible ToDos:
-- implement new activation function (relu instead of sigmoid maybe? Requires change to gradient)
+- implement new activation functions
 - implement different optimizers
 
 
