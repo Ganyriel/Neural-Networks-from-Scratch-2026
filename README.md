@@ -10,7 +10,9 @@ The code is currently:
 
 Temporary stuff:
 - Frozen Lake doesn't have holes (for fixing errors)
-- The file uses numpy instead of CuPy (Cupy is significantly slower than numpy. Probably due to copying (gpu mostly copies))
+- The file uses numpy instead of CuPy   
+    - CuPy is significantly slower than numpy. The GPU's parallelism is underutilized due to the tiny problem size. 
+    Copying could be the issue, because the CPU sending the GPU a command has a fixed cost.
 
 
 Possible tweakable stuff:
