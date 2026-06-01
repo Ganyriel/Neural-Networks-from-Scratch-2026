@@ -5,8 +5,8 @@ from matplotlib import pyplot as plt
 
 from tqdm import tqdm  # Progress bar
 
-
-class BlackjackAgent:
+# DISCLAIMER: Agent not yet changed. Is copied from BlackJackNeural class, because Durak Environment is still in the making.
+class DurakAgent:
     def __init__(
         self,
         env: gym.Env,
@@ -95,7 +95,7 @@ class BlackjackAgent:
         
         
 # Training hyperparameters
-learning_rate = 0.01        # How fast to learn (higher = faster but less stable)
+learning_rate = 0.001        # How fast to learn (higher = faster but less stable)
 n_episodes = 100_000        # Number of hands to practice
 start_epsilon = 1.0         # Start with 100% random actions
 epsilon_decay = start_epsilon / (n_episodes / 2)  # Reduce exploration over time

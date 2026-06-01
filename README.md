@@ -1,8 +1,9 @@
 # Neural-Networks-from-Scratch-2026
 Advanced Practical called "Neural Networks from Scratch"
 
-
-FrozenLakeNeural.py contains a Neural Network which is supposed to learn to play Frozen Lake without any Holes. 
+## Files with \<name>.py
+#### FrozenLakeNeural
+contains a Neural Network which is supposed to learn to play Frozen Lake without any Holes. 
 The code is currently:
 - a bit messy
 - agent solves the puzzle only sometimes (now (29.05) with 70% of the times)
@@ -28,8 +29,14 @@ Possible ToDos:
 - implement new activation functions
 - implement different optimizers
 
-BlackJackNeural.py contains an hands-on approach to Q-Learning and simpler implementation of RL.
+#### BlackJackQLearning
+contains an hands-on approach to Q-Learning and simpler implementation of RL.
 This approach was chosen to get wider understanding of different possibilites on how to move forward.
 This file was created using the Tutorial on the [Gymnasium Library Documentation ](https://gymnasium.farama.org/)
 
+#### DurakQLearning
+contains a sample for creating a Durak 
 
+#### DurakEnvironment
+contains a not yet fully implemented Environment for Durak. Yet it serves as a sample, that still needs a lot adjjustment.
+I'm doing this to understand custom environment creation and wrappers etc.
