@@ -28,4 +28,8 @@ Possible ToDos:
 - implement new activation functions
 - implement different optimizers
 
+BlackJackNeural.py contains an hands-on approach to Q-Learning and simpler implementation of RL.
+This approach was chosen to get wider understanding of different possibilites on how to move forward.
+This file was created using the Tutorial on the [Gymnasium Library Documentation ](https://gymnasium.farama.org/)
+
 

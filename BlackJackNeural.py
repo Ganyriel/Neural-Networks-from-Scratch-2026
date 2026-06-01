@@ -144,6 +144,11 @@ for episode in tqdm(range(n_episodes)):
             mode=convolution_mode
         ) / window
 
+
+
+
+
+
 # Smooth over a 500-episode window
 rolling_length = 500
 fig, axs = plt.subplots(ncols=3, figsize=(12, 5))
