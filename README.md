@@ -2,19 +2,18 @@
 Advanced Practical called "Neural Networks from Scratch"
 
 ## Files with \<name>.py
-#### FrozenLakeNeural
-contains a Neural Network which is supposed to learn to play Frozen Lake without any Holes. 
+#### FrozenLakeNeuralAdam
+contains a Neural Network which is supposed to learn to play Frozen Lake. 
+
 The code is currently:
 - a bit messy
-- agent solves the puzzle only sometimes (now (29.05) with 70% of the times)
-- MSE Loss has probably an error in the gradient
+- agent solves the puzzle only almost always (now (02.06) with 84.63% of the times, tested over 1_000 experiments)
+- runs 1_000 epochs in a few seconds
+- slows down considerably when running many (few hundred) experiments (1_000 experiments should have taken ~2_000s, but took 3325s)
 
 Temporary stuff:
-- Frozen Lake doesn't have holes (for fixing errors)
-- The file uses numpy instead of CuPy   
-    - CuPy is significantly slower than numpy. The GPU's parallelism is underutilized due to the tiny problem size. 
-    Copying could be the issue, because the CPU sending the GPU a command has a fixed cost.
-
+- The file uses numpy instead of CuPy (Cupy is significantly slower than numpy. Probably due to copying (gpu mostly copies))
+- unresolved issue with handling learning rate (ADAM uses a static learning rate)
 
 Possible tweakable stuff:
 - hidden layer size
