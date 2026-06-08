@@ -39,3 +39,6 @@ contains a sample for creating a Durak
 #### DurakEnvironment
 contains a not yet fully implemented Environment for Durak. Yet it serves as a sample, that still needs a lot adjjustment.
 I'm doing this to understand custom environment creation and wrappers etc.
+
+#### BlackJack
+contains an unclean implementation of deep Q learning for Blackjack. The agent's success rate is about 40%
