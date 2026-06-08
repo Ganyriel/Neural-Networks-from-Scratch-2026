@@ -524,12 +524,12 @@ class FrozenLakeDQL():
         plt.title("Rewards per episode")
 
         # Plot epsilon decay (Y-axis) vs episodes (X-axis)
-        plt.subplot(222) # plot on a 2 row x 2 col grid, at cell 2
-        plt.plot(epsilon_history)
-        plt.title("Epsilon in each episode")
+        # plt.subplot(222) # plot on a 2 row x 2 col grid, at cell 2
+        # plt.plot(epsilon_history)
+        # plt.title("Epsilon in each episode")
         
         # Plot average rewards (Y-axis) vs episodes (X-axis)
-        plt.subplot(223)
+        plt.subplot(222)
         sum_rewards = np.zeros(episodes)
         # TODO Correct?
         for x in range(episodes):
@@ -537,6 +537,7 @@ class FrozenLakeDQL():
         plt.plot(sum_rewards)
         plt.title("Average reward")
 
+        plt.subplot(223)
         plt.plot(loss_list)
         plt.title("Loss per episode")
 
@@ -695,7 +696,7 @@ if __name__ == '__main__':
     relu = False # set to true to change the activation function from sigmoid to relu
     small = True # set to true to delete the hidden layer
 
-    number_of_experiments = 20 # How many NNs we train
+    number_of_experiments = 1 # How many NNs we train
     hidden_layer_size = 16  
     epoch_number = 1_000 # default: 1_000 (arbitrary)
 
