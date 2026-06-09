@@ -7,9 +7,6 @@ import pickle
 import time
 import tqdm
 
-
-
-
 # ---------------------------------------------------------
 # Linear layer
 # ---------------------------------------------------------
@@ -20,6 +17,55 @@ class Linear:
         self, in_features: int, out_features: int, batch_size: int
     ) -> None:
         super(Linear, self).__init__()
+        self.batch_size = batch_size
+        self.weight = np.random.normal(size=(in_features, out_features)) * np.sqrt(
+            1.0 / in_features
+        )
+        self.bias = np.random.normal(size=(out_features,)) * np.sqrt(1.0 / in_features)
+        self.grad_weight = np.zeros((in_features, out_features))
+        self.grad_bias = np.zeros(out_features)
+        self.input = np.zeros((batch_size, in_features))
+
+    def forward(self, input: np.ndarray) -> np.ndarray:
+        self.input = input
+        output = input @ self.weight + self.bias
+        return output
+
+    def backward(self, grad_output: np.ndarray) -> np.ndarray:
+        
+        # Reshape in case the input is flattened
+        grad_output = grad_output.reshape(-1, np.transpose(self.weight).shape[0])  
+        
+        grad_input = grad_output @ np.transpose(self.weight)
+        self.grad_weight = np.transpose(self.input) @ grad_output
+        self.grad_bias = np.sum(grad_output, axis=0)
+        return grad_input
+
+    def update(self, lr) -> None:
+        self.weight = self.weight - lr * self.grad_weight / self.batch_size
+        self.bias = self.bias - lr * self.grad_bias / self.batch_size
+
+    def get_weights(self):
+        # returns the weights and bias
+        return [self.weight, self.bias]
+
+    def set_weights(self, new_weights):
+        # sets weights and bias of the neural network
+        self.weight = new_weights[0]
+        self.bias = new_weights[1]
+
+
+
+# ---------------------------------------------------------
+# Linear layer with ADAM
+# ---------------------------------------------------------
+class Linear_ADAM:
+    """A fully connected layer implemented with NumPy arrays."""
+
+    def __init__(
+        self, in_features: int, out_features: int, batch_size: int
+    ) -> None:
+        super(Linear_ADAM, self).__init__()
         self.batch_size = batch_size
         self.weight = np.random.normal(size=(in_features, out_features)) * np.sqrt(
             1.0 / in_features
@@ -64,7 +110,7 @@ class Linear:
         self.grad_bias = np.sum(grad_output, axis=0)
         return grad_input
 
-    def update(self, lr) -> None:
+    def update(self, learning_rate) -> None:
         "Implementation of the ADAM optimizer"
 
         # Weight update
@@ -86,6 +132,7 @@ class Linear:
         # Shared parameter update
         self.b_1_t = self.b_1_t*self.b_1
         self.b_2_t = self.b_2_t*self.b_2
+
 
 
 
@@ -143,6 +190,11 @@ class Relu:
         grad_input = grad_output.copy()
         grad_input[self.input <=0] = 0
         return grad_input
+    
+
+# ---------------------------------------------------------
+# Neural Networks
+# ---------------------------------------------------------
 
 # Define model
 class NN:
@@ -152,11 +204,11 @@ class NN:
 
         # Define network layers
         self.in_features = in_states
-        self.l1 = Linear(in_states, h1_nodes, batch_size)   # Linear layer
+        self.l1 = Linear_ADAM(in_states, h1_nodes, batch_size)   # Linear layer
         self.s1 = Sigmoid(h1_nodes, batch_size) # Sigmoid layer
-        self.l2 = Linear(h1_nodes, h1_nodes, batch_size)   # Linear layer
+        self.l2 = Linear_ADAM(h1_nodes, h1_nodes, batch_size)   # Linear layer
         self.s2 = Sigmoid(h1_nodes, batch_size) # Sigmoid layer
-        self.l3 = Linear(h1_nodes, out_actions, batch_size) # Ouptut layer 
+        self.l3 = Linear_ADAM(h1_nodes, out_actions, batch_size) # Ouptut layer 
 
 
     def forward(self, x: np.ndarray) -> np.ndarray:
@@ -169,12 +221,10 @@ class NN:
         x = self.l2.forward(x)    # Linear layer
         x = self.s2.forward(x)    # Apply sigmoid activation function
         x = self.l3.forward(x)    # Linear layer
-        x = softmax(x)         # Apply softmax
 
         return x[0]
     
     def backward(self, x: np.ndarray) -> None:
-        # x = softmax_gradient(x)
         x = self.l3.backward(x)
         x = self.s2.backward(x)
         x = self.l2.backward(x)
@@ -213,11 +263,11 @@ class NN_Relu:
 
         # Define network layers
         self.in_features = in_states
-        self.l1 = Linear(in_states, h1_nodes, batch_size)   # Linear layer
+        self.l1 = Linear_ADAM(in_states, h1_nodes, batch_size)   # Linear layer
         self.r1 = Relu(h1_nodes, batch_size) # Relu layer
-        self.l2 = Linear(h1_nodes, h1_nodes, batch_size)   # Linear layer
+        self.l2 = Linear_ADAM(h1_nodes, h1_nodes, batch_size)   # Linear layer
         self.r2 = Relu(h1_nodes, batch_size) # Relu layer
-        self.l3 = Linear(h1_nodes, out_actions, batch_size) # Ouptut layer 
+        self.l3 = Linear_ADAM(h1_nodes, out_actions, batch_size) # Ouptut layer 
 
 
     def forward(self, x: np.ndarray) -> np.ndarray:
@@ -230,7 +280,7 @@ class NN_Relu:
         x = self.l2.forward(x)    # Linear layer
         x = self.r2.forward(x)    # Apply relu activation function
         x = self.l3.forward(x)    # Linear layer
-        x = softmax(x)         # Apply softmax
+        # x = softmax(x)         # Apply softmax
 
         return x[0]
     
@@ -272,9 +322,9 @@ class NN_small:
 
         # Define network layers
         self.in_features = in_states
-        self.l1 = Linear(in_states, h1_nodes, batch_size)   # Linear layer
+        self.l1 = Linear_ADAM(in_states, h1_nodes, batch_size)   # Linear layer
         self.r1 = Relu(h1_nodes, batch_size) # ReLU layer
-        self.l2 = Linear(h1_nodes, out_actions, batch_size)   # Linear layer
+        self.l2 = Linear_ADAM(h1_nodes, out_actions, batch_size)   # Linear layer
         
 
     def forward(self, x: np.ndarray) -> np.ndarray:
@@ -313,36 +363,11 @@ class NN_small:
 # ---------------------------------------------------------
 # Utilities for training
 # ---------------------------------------------------------
-def softmax(input: np.ndarray) -> np.ndarray:
-    """Compute the row-wise softmax of the input logits."""
-    output = np.exp(input) / np.sum(np.exp(input), axis=1, keepdims=True)
-    return output
-
-
-# def softmax_gradient(input):
-#     """Compute the gradient of the softmax."""
-#     # Reshape in case the input is flattened
-#     input = input.reshape(-1, 4)  
-#     soft = np.exp(input) / np.sum(np.exp(input), axis=1, keepdims=True)
-    
-#     return soft*(1-soft)
-
-# def compute_loss(target: np.ndarray, prediction: np.ndarray) -> float:
-#     """Return the average cross-entropy loss for a batch of predictions."""
-#     return -np.sum(target * np.log(prediction+1e-8)) / prediction.shape[0] 
 
 def compute_loss_mse(target: np.ndarray, prediction: np.ndarray) -> float:
     """Return MSE"""
     return np.sum((target -prediction)**2) / prediction.shape[0] 
 
-
-# def compute_gradient(target: np.ndarray, prediction: np.ndarray) -> np.ndarray:
-#     """
-#     Computes the gradient of the cross-entropy loss w.r.t. the predictions.
-#     The below formula is valid for softmax + cross-entropy loss with one-hot targets.
-#     Due to this, we do not need to implement a backward pass for the softmax layer.
-#     """
-#     return prediction - target
 
 def compute_gradient(target: np.ndarray, prediction: np.ndarray) -> np.ndarray:
     """
@@ -351,7 +376,7 @@ def compute_gradient(target: np.ndarray, prediction: np.ndarray) -> np.ndarray:
     return 2*(prediction - target) / prediction.shape[0]
     
 
-
+# TODO DO WE NEED IT?
 def one_hot(a: np.ndarray, num_classes: int) -> np.ndarray:
     return np.squeeze(np.eye(num_classes)[a.reshape(-1)])
 
@@ -375,16 +400,19 @@ class ReplayMemory():
 # FrozeLake Deep Q-Learning
 class FrozenLakeDQL():
     # Hyperparameters (adjustable)
-    learning_rate_a = 0.1      # learning rate (alpha), default: 0.001 (tutorial) or 0.1 (empirical)
     discount_factor_g = 0.9         # discount rate (gamma), default: 0.9  
     network_sync_rate = 10          # number of steps the agent takes before syncing the policy and target network, default: 10
     replay_memory_size = 1_000       # size of replay memory, default: 1_000
     mini_batch_size = 32          # size of the training data set sampled from the replay memory, default: 32
-    learning_rate_reductions = 40 # what part of the epochs needs to pass until we reduce the learning rate, default: 20
-    learning_rate_divisor = 1.1 # the number which divides the learning rate, default: 1.2
+
+    # Not needed when using ADAM
+    learning_rate_a = 0.1      # learning rate (alpha), default: 0.001 (tutorial) or 0.1 (empirical)
+    learning_rate_reductions = 1.0 # what part of the epochs needs to pass until we reduce the learning rate, default: 20
+    learning_rate_divisor = 1.0# the number which divides the learning rate, default: 1.2
     
 
     # Neural Network stuff
+    # TODO needed?
     def loss_fn(self,y_true, y_pred):
         return np.square(y_true-y_pred).mean()   # Loss function. MSE=Mean Squared Error can be swapped to something else.
 
@@ -446,11 +474,13 @@ class FrozenLakeDQL():
         step_count=0
             
         for i in tqdm.tqdm(range(episodes)):
-            # If we print other stuff, we don't want a progress bar
+            # For debugging: If we print other stuff, we don't want a progress bar
             # if(i%500 == 0):
             #     print("Epoch: ", i)
             
-            if(i%(episodes/self.learning_rate_reductions) == 0):  # possible augmentation: 1. constant learning rate at first and 2. learning rate reset
+            # TODO COMMENT OUT
+            # Not needed when using ADAM
+            if(i % (episodes/self.learning_rate_reductions) == 0):  # possible augmentation: 1. constant learning rate at first and 2. learning rate reset
                 lr = lr/self.learning_rate_divisor 
 
             # For plotting the learning rate
@@ -487,7 +517,7 @@ class FrozenLakeDQL():
 
             
             # Check if enough experience has been collected and if at least 1 reward has been collected
-            if len(memory)>self.mini_batch_size  and np.sum(rewards_per_episode)>0: # TODO  and np.max(rewards_per_episode) > 0
+            if (len(memory) > self.mini_batch_size  and np.sum(rewards_per_episode) > 0): # TODO  and np.max(rewards_per_episode) > 0
                 mini_batch = memory.sample(self.mini_batch_size)
                 loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn, lr))        
 
@@ -508,10 +538,10 @@ class FrozenLakeDQL():
 
         print("Reached the goal this many times: ", (rewards_per_episode > 0).sum())
 
-        # Save policy
+        # Saving the model
         with open('policy_dqn.pkl', 'wb') as file:
             pickle.dump(policy_dqn.get_weights(), file)
-        # print("Saving succesful")
+        
 
         # Printing the weights of the trained network
         # policy_dqn.print_weights()
@@ -573,7 +603,7 @@ class FrozenLakeDQL():
             current_q_list.append(current_q)
             
             # Get the target set of Q values
-            target_q = target_dqn.forward(self.state_to_dqn_input(state, num_states)) # TODO? [0]
+            target_q = target_dqn.forward(self.state_to_dqn_input(state, num_states)) 
 
             # Adjust the specific action to the target that was just calculated
             target_q[action] = target
@@ -613,17 +643,19 @@ class FrozenLakeDQL():
     def test(self, episodes, is_slippery=False, render = True, relu = False, small = False, hidden_layer_size = 16):
         succesful = 0
 
-        # Create FrozenLake instance
+        # Setting render mode
         rendered = None
         if (render == True):
             rendered = 'human'
 
+        # Create FrozenLake instance
         env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=is_slippery, render_mode=rendered)
 
+        # Initializing
         num_states = env.observation_space.n
         num_actions = env.action_space.n
 
-        # Load learned policy
+        # Initialize Neural Network
         if (relu == True):
             policy_dqn = NN_Relu(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size) 
         elif (small == True):
@@ -631,12 +663,14 @@ class FrozenLakeDQL():
         else:
             policy_dqn = NN(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size) 
 
+
+        # Loading the model
         with open('policy_dqn.pkl', 'rb') as file:
             policy_model = pickle.load(file)
         policy_dqn.set_weights(policy_model)
-        # print("Loading successful")
         
-
+        
+        # Debugging Logs:
         # print('Policy (trained):')
         # policy_dqn.print_weights()
 
@@ -663,6 +697,7 @@ class FrozenLakeDQL():
         env.close()
         return succesful
 
+    # TODO: Not yet compatible with our code. Rework this Log for printing Q-values
     # Print DQN: state, best action, q values
     def print_dqn(self, dqn):
         # TODO NOT COMPATIBLE YET, BUT IDK IF NEEDED
@@ -696,7 +731,7 @@ if __name__ == '__main__':
     relu = False # set to true to change the activation function from sigmoid to relu
     small = True # set to true to delete the hidden layer
 
-    number_of_experiments = 1 # How many NNs we train
+    number_of_experiments = 10 # How many NNs we train
     hidden_layer_size = 16  
     epoch_number = 1_000 # default: 1_000 (arbitrary)
 
