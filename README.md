@@ -34,7 +34,8 @@ This approach was chosen to get wider understanding of different possibilites on
 This file was created using the Tutorial on the [Gymnasium Library Documentation ](https://gymnasium.farama.org/)
 
 #### DurakQLearning
-contains a sample for creating a Durak 
+contains a sample for creating a Durak Q Learning approach.
+Has to be altered and adjusted to fit the Environment. We are gonna see how that plays out.
 
 #### DurakEnvironment
 contains a not yet fully implemented Environment for Durak. Yet it serves as a sample, that still needs a lot adjjustment.
