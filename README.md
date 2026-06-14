@@ -40,6 +40,7 @@ Has to be altered and adjusted to fit the Environment. We are gonna see how that
 #### DurakEnvironment
 contains a not yet fully implemented Environment for Durak. Yet it serves as a sample, that still needs a lot adjjustment.
 I'm doing this to understand custom environment creation and wrappers etc.
+After some research and game analysis and so on. Durak seems not that easy to solve. Im moving onto an easier game to learn Environment creation.
 
 #### BlackJack
 contains an unclean implementation of deep Q learning for Blackjack. The agent's success rate is about 40%

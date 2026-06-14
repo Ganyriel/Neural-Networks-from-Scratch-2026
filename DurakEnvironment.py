@@ -20,7 +20,7 @@ class DurakEnv(gym.Env):
         - Pass (if applicable)
     """
 
-    def __init__(self, num_players=2, deck_size=52, max_hand_size=5):
+    def __init__(self, num_players=2, deck_size=36, max_hand_size=6):
         super().__init__()
         
         # --- Configuration ---
