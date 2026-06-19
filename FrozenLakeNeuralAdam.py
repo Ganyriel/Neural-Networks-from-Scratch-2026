@@ -11,17 +11,20 @@ import tqdm
 # Linear layer
 # ---------------------------------------------------------
 class Linear:
-    """A fully connected layer implemented with NumPy arrays."""
+    """ A fully connected layer implemented with NumPy arrays, without any sophistication
+        Uses: 
+            - simple initialization of weights
+            - gradient descent          
+    """
 
     def __init__(
         self, in_features: int, out_features: int, batch_size: int
     ) -> None:
         super(Linear, self).__init__()
         self.batch_size = batch_size
-        self.weight = np.random.normal(size=(in_features, out_features)) * np.sqrt(
-            1.0 / in_features
-        )
-        self.bias = np.random.normal(size=(out_features,)) * np.sqrt(1.0 / in_features)
+        self.rng = np.random.default_rng(seed=42)
+        self.weight = self.rng.normal(size=(in_features, out_features)) * np.sqrt(1.0 / in_features)
+        self.bias = self.rng.normal(size=(out_features,)) * np.sqrt(1.0 / in_features)
         self.grad_weight = np.zeros((in_features, out_features))
         self.grad_bias = np.zeros(out_features)
         self.input = np.zeros((batch_size, in_features))
@@ -67,24 +70,32 @@ class Linear_ADAM:
     ) -> None:
         super(Linear_ADAM, self).__init__()
         self.batch_size = batch_size
-        self.weight = np.random.normal(size=(in_features, out_features)) * np.sqrt(
-            1.0 / in_features
-        )
-        self.bias = np.random.normal(size=(out_features,)) * np.sqrt(1.0 / in_features)
+
+        # For comparison: more primitive initialization of weights and bias
+        # self.weight = np.random.normal(size=(in_features, out_features)) * np.sqrt(1.0 / in_features)
+        # self.bias = np.random.normal(size=(out_features,)) * np.sqrt(1.0 / in_features)
+
+        # Initialization of weights like in torch
+        self.k = np.sqrt(1/in_features)
+        self.rng = np.random.default_rng(seed=42)
+        self.weight = self.rng.uniform(-self.k,self.k, size=(in_features, out_features))
+        self.bias = self.rng.uniform(-self.k,self.k, size=(out_features,))
+
+        # Initialization for forward and backward pass
         self.grad_weight = np.zeros((in_features, out_features))
         self.grad_bias = np.zeros(out_features)
         self.input = np.zeros((batch_size, in_features))
 
+
         # Attributes for ADAM
 
-        # For weights and bias
+        # Shared for weights and bias
         self.e = 1e-8
         self.lr = 0.001
         self.b_1 = 0.9
         self.b_1_t = self.b_1
         self.b_2 = 0.999
         self.b_2_t = self.b_2
-
 
         # For weights
         self.m_w = 0
@@ -118,7 +129,6 @@ class Linear_ADAM:
         self.v_w = self.b_2 * self.v_w + (1-self.b_2) * (self.grad_weight / self.batch_size)**2  
         m_hat_w = self.m_w / (1-self.b_1_t) 
         v_hat_w = self.v_w / (1-self.b_2_t)
-        
         self.weight  = self.weight - self.lr * m_hat_w / (np.sqrt(v_hat_w) + self.e)                    
 
         # Bias update
@@ -126,7 +136,6 @@ class Linear_ADAM:
         self.v_b = self.b_2 * self.v_b + (1-self.b_2) * (self.grad_bias / self.batch_size)**2  
         m_hat_b = self.m_b / (1-self.b_1_t) 
         v_hat_b = self.v_b / (1-self.b_2_t)
-        
         self.bias = self.bias - self.lr * m_hat_b / (np.sqrt(v_hat_b) + self.e)   
 
         # Shared parameter update
@@ -280,8 +289,6 @@ class NN_Relu:
         x = self.l2.forward(x)    # Linear layer
         x = self.r2.forward(x)    # Apply relu activation function
         x = self.l3.forward(x)    # Linear layer
-        # x = softmax(x)         # Apply softmax
-
         return x[0]
     
     def backward(self, x: np.ndarray) -> None:
@@ -325,7 +332,8 @@ class NN_small:
         self.l1 = Linear_ADAM(in_states, h1_nodes, batch_size)   # Linear layer
         self.r1 = Relu(h1_nodes, batch_size) # ReLU layer
         self.l2 = Linear_ADAM(h1_nodes, out_actions, batch_size)   # Linear layer
-        
+
+
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         x = x.reshape(x.shape[0], -1)  # Flatten the input
@@ -361,7 +369,7 @@ class NN_small:
 
 
 # ---------------------------------------------------------
-# Utilities for training
+# Loss and gradient of loss
 # ---------------------------------------------------------
 
 def compute_loss_mse(target: np.ndarray, prediction: np.ndarray) -> float:
@@ -374,12 +382,6 @@ def compute_gradient(target: np.ndarray, prediction: np.ndarray) -> np.ndarray:
     Computes the gradient of the mse error.
     """
     return 2*(prediction - target) / prediction.shape[0]
-    
-
-# TODO DO WE NEED IT?
-def one_hot(a: np.ndarray, num_classes: int) -> np.ndarray:
-    return np.squeeze(np.eye(num_classes)[a.reshape(-1)])
-
 # ---------------------------------------------------------    
 
 
@@ -405,43 +407,42 @@ class FrozenLakeDQL():
     replay_memory_size = 1_000       # size of replay memory, default: 1_000
     mini_batch_size = 32          # size of the training data set sampled from the replay memory, default: 32
 
-    # Not needed when using ADAM
+    # Hyperparameters which are obsolete when using ADAM
     learning_rate_a = 0.1      # learning rate (alpha), default: 0.001 (tutorial) or 0.1 (empirical)
     learning_rate_reductions = 1.0 # what part of the epochs needs to pass until we reduce the learning rate, default: 20
-    learning_rate_divisor = 1.0# the number which divides the learning rate, default: 1.2
+    learning_rate_divisor = 1.0 # the number which divides the learning rate, default: 1.2
     
 
-    # Neural Network stuff
-    # TODO needed?
-    def loss_fn(self,y_true, y_pred):
-        return np.square(y_true-y_pred).mean()   # Loss function. MSE=Mean Squared Error can be swapped to something else.
-
-
-
-    ACTIONS = ['L','D','R','U']     # for printing 0,1,2,3 => L(eft),D(own),R(ight),U(p)
 
     # Train the FrozeLake environment
-    def train(self, episodes, render, is_slippery, relu = False, small = False, hidden_layer_size = 16):
+    def train(self, episodes, render = False, is_slippery = False, relu = False, small = False, hidden_layer_size = 16):
+
         # Create FrozenLake instance
+
+        # Deciding whether training should be rendered (recommended only for debugging or presentation)
         curr_render_mode = None
         if (render == True):
             curr_render_mode = 'human'
         
+        # Creating environment
         env = gym.make(
             'FrozenLake-v1', 
-            # desc=["SFFF", "FFFF", "FFFF", "FFFG"], 
             map_name="4x4",
             is_slippery=is_slippery, 
             render_mode=curr_render_mode,
-            reward_schedule=(1, 0.0, 0.0)  #def: 1, 0.0, 0.0
+            reward_schedule=(1, 0.0, 0.0)  #default: 1, 0.0, 0.0
         )
         loss_list = []   
 
+        # Initializing constants
         num_states = env.observation_space.n
         num_actions = env.action_space.n
         
+        # Initializing changing variables
         lr = self.learning_rate_a
         epsilon = 1 # 1 = 100% random actions
+
+
         memory = ReplayMemory(self.replay_memory_size)
 
         # Create policy and target network. Number of nodes in the hidden layer can be adjusted.
@@ -478,10 +479,10 @@ class FrozenLakeDQL():
             # if(i%500 == 0):
             #     print("Epoch: ", i)
             
-            # TODO COMMENT OUT
+            # For comparison: a primitive learning rate scheduler
             # Not needed when using ADAM
-            if(i % (episodes/self.learning_rate_reductions) == 0):  # possible augmentation: 1. constant learning rate at first and 2. learning rate reset
-                lr = lr/self.learning_rate_divisor 
+            # if(i % (episodes/self.learning_rate_reductions) == 0):  # possible augmentation: 1. constant learning rate at first and 2. learning rate reset
+            #     lr = lr/self.learning_rate_divisor 
 
             # For plotting the learning rate
             learning_rate_history.append(lr)
@@ -517,7 +518,7 @@ class FrozenLakeDQL():
 
             
             # Check if enough experience has been collected and if at least 1 reward has been collected
-            if (len(memory) > self.mini_batch_size  and np.sum(rewards_per_episode) > 0): # TODO  and np.max(rewards_per_episode) > 0
+            if (len(memory) > self.mini_batch_size and np.max(rewards_per_episode) > 0): 
                 mini_batch = memory.sample(self.mini_batch_size)
                 loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn, lr))        
 
@@ -543,16 +544,18 @@ class FrozenLakeDQL():
             pickle.dump(policy_dqn.get_weights(), file)
         
 
-        # Printing the weights of the trained network
-        # policy_dqn.print_weights()
+        # Debugging Logs: printing the q-values of the trained network
+        # self.print_dqn(policy_dqn)
 
         # Create new graph 
         plt.figure(1)
         
-        plt.subplot(221) # plot on a 2 row x 2 col grid, at cell 1
+        # Plot rewards in every episode
+        plt.subplot(221) 
         plt.plot(rewards_per_episode)
         plt.title("Rewards per episode")
 
+        # Debug log: For plotting epsilon
         # Plot epsilon decay (Y-axis) vs episodes (X-axis)
         # plt.subplot(222) # plot on a 2 row x 2 col grid, at cell 2
         # plt.plot(epsilon_history)
@@ -561,16 +564,17 @@ class FrozenLakeDQL():
         # Plot average rewards (Y-axis) vs episodes (X-axis)
         plt.subplot(222)
         sum_rewards = np.zeros(episodes)
-        # TODO Correct?
         for x in range(episodes):
-           sum_rewards[x] = np.sum(rewards_per_episode[max(0, x-100):(x+1)])
+           sum_rewards[x] = np.sum(rewards_per_episode[max(0, x-100):(x+1)])/((x+1)-max(0, x-100))
         plt.plot(sum_rewards)
         plt.title("Average reward")
 
+        # Plot the loss
         plt.subplot(223)
         plt.plot(loss_list)
         plt.title("Loss per episode")
 
+        # Plot the learning rate
         plt.subplot(224)
         plt.plot(learning_rate_history)
         plt.title("Learning rate in each episode")
@@ -640,7 +644,7 @@ class FrozenLakeDQL():
         return input_tensor
 
     # Run the FrozeLake environment with the learned policy
-    def test(self, episodes, is_slippery=False, render = True, relu = False, small = False, hidden_layer_size = 16):
+    def test(self, episodes, is_slippery = False, render = True, relu = False, small = False, hidden_layer_size = 16):
         succesful = 0
 
         # Setting render mode
@@ -669,12 +673,8 @@ class FrozenLakeDQL():
             policy_model = pickle.load(file)
         policy_dqn.set_weights(policy_model)
         
-        
-        # Debugging Logs:
-        # print('Policy (trained):')
-        # policy_dqn.print_weights()
 
-
+        # Testing
         for _ in range(episodes):
             state = env.reset()[0]  # Initialize to state 0
             terminated = False      # True when agent falls in hole or reached goal
@@ -688,39 +688,44 @@ class FrozenLakeDQL():
                 # Execute action
                 state,reward,terminated,truncated,_ = env.step(action)
 
-                
+        # For keeping track of successesful training sessions       
         if (reward == 1):
             print("The agent reached the goal!")
             succesful = 1
 
 
+        # Closing the environment
         env.close()
+
+        # Debugging Logs: printing the q-values of the trained network
+        # self.print_dqn(policy_dqn)
+
+        # Returning whether the agent fulfilled their goal
         return succesful
 
-    # TODO: Not yet compatible with our code. Rework this Log for printing Q-values
+    
     # Print DQN: state, best action, q values
     def print_dqn(self, dqn):
-        # TODO NOT COMPATIBLE YET, BUT IDK IF NEEDED
-
         # Get number of input nodes
-        num_states = dqn.fc1.in_features
+        num_states = dqn.in_features
+
+        ACTIONS = ['L','D','R','U']     # for printing 0,1,2,3 => L(eft),D(own),R(ight),U(p)
 
         # Loop each state and print policy to console
         for s in range(num_states):
             #  Format q values for printing
             q_values = ''
-            for q in dqn(self.state_to_dqn_input(s, num_states)).tolist():
+            for q in dqn.forward(self.state_to_dqn_input(s, num_states)).tolist():
                 q_values += "{:+.2f}".format(q)+' '  # Concatenate q values, format to 2 decimals
             q_values=q_values.rstrip()              # Remove space at the end
 
             # Map the best action to L D R U
-            best_action = self.ACTIONS[dqn(self.state_to_dqn_input(s, num_states)).argmax()]
+            best_action = ACTIONS[dqn.forward(self.state_to_dqn_input(s, num_states)).argmax()]
 
             # Print policy in the format of: state, action, q values
             # The printed layout matches the FrozenLake map.
             print(f'{s:02},{best_action},[{q_values}]', end=' ')         
-            if (s+1)%4==0:
-                print() # Print a newline every 4 states
+            print() # Print a new line for every state
 
 if __name__ == '__main__':
     # Initializing
@@ -730,8 +735,9 @@ if __name__ == '__main__':
     test_run_number = 3 # How often we let it show what it learned 
     relu = False # set to true to change the activation function from sigmoid to relu
     small = True # set to true to delete the hidden layer
+    Adam = True #TODO implement swtich between adam and less sophisticated learning rate schedulers
 
-    number_of_experiments = 10 # How many NNs we train
+    number_of_experiments = 1 # How many NNs we train
     hidden_layer_size = 16  
     epoch_number = 1_000 # default: 1_000 (arbitrary)
 
@@ -771,6 +777,7 @@ if __name__ == '__main__':
         print("Proportion: ", sum_of_successes/i) 
         print("")
 
+    
     print("Number of successes: ", sum_of_successes)
     print("Proportion of successes: ", sum_of_successes/number_of_experiments)
 

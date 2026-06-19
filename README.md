@@ -7,7 +7,6 @@ contains a Neural Network which is supposed to learn to play Frozen Lake.
 
 The code is currently:
 - a bit messy
-- agent solves the puzzle only almost always (now (02.06) with 84.63% of the times, tested over 1_000 experiments)
 - runs 1_000 epochs in a few seconds
 - slows down considerably when running many (few hundred) experiments (1_000 experiments should have taken ~2_000s, but took 3325s)
 
@@ -27,6 +26,10 @@ Possible tweakable stuff:
 Possible ToDos:
 - implement new activation functions
 - implement different optimizers
+- implement different weight initialization methods
+
+Remark:
+- agent solves the puzzle almost always (19.06 with 99.96% chance, tested over 300 experiments)
 
 #### BlackJackQLearning
 contains an hands-on approach to Q-Learning and simpler implementation of RL.
