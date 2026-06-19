@@ -2,8 +2,8 @@
 Advanced Practical called "Neural Networks from Scratch"
 
 ## Files with \<name>.py
-#### FrozenLakeNeuralAdam
-contains a Neural Network which is supposed to learn to play Frozen Lake. 
+#### FrozenLakeDeepQ
+contains a Neural Network which is supposed to learn to play Frozen Lake using Deep Q Learning. 
 
 The code currently:
 - is slightly messy
@@ -30,7 +30,7 @@ contains a not yet fully implemented Environment for Durak. Yet it serves as a s
 I'm doing this to understand custom environment creation and wrappers etc.
 After some research and game analysis and so on. Durak seems not that easy to solve. Im moving onto an easier game to learn Environment creation.
 
-#### BlackJack
+#### BlackJackDeepQ
 contains an unclean implementation of deep Q learning for Blackjack. The agent's success rate is 40-42%. Requires some cleanup and hyperparameter tuning
 
 
