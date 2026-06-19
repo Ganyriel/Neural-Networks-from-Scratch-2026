@@ -62,13 +62,13 @@ class Linear:
 # ---------------------------------------------------------
 # Linear layer with ADAM
 # ---------------------------------------------------------
-class Linear_ADAM:
+class linear_adam:
     """A fully connected layer implemented with NumPy arrays."""
 
     def __init__(
         self, in_features: int, out_features: int, batch_size: int
     ) -> None:
-        super(Linear_ADAM, self).__init__()
+        super(linear_adam, self).__init__()
         self.batch_size = batch_size
 
         # For comparison: more primitive initialization of weights and bias
@@ -142,9 +142,6 @@ class Linear_ADAM:
         self.b_1_t = self.b_1_t*self.b_1
         self.b_2_t = self.b_2_t*self.b_2
 
-
-
-
     def get_weights(self):
         # returns the weights and bias
         return [self.weight, self.bias]
@@ -206,38 +203,50 @@ class Relu:
 # ---------------------------------------------------------
 
 # Define model
-class NN:
-    def __init__(self, in_states, h1_nodes, out_actions, batch_size: int):
-        super(NN, self).__init__()
-        #super().__init__()
+class three_layers_neural_network:
+    def __init__(self, in_states, h1_nodes, out_actions, batch_size: int, adam: bool, relu: bool):
+        super(three_layers_neural_network, self).__init__()
+
+        self.in_features = in_states
 
         # Define network layers
-        self.in_features = in_states
-        self.l1 = Linear_ADAM(in_states, h1_nodes, batch_size)   # Linear layer
-        self.s1 = Sigmoid(h1_nodes, batch_size) # Sigmoid layer
-        self.l2 = Linear_ADAM(h1_nodes, h1_nodes, batch_size)   # Linear layer
-        self.s2 = Sigmoid(h1_nodes, batch_size) # Sigmoid layer
-        self.l3 = Linear_ADAM(h1_nodes, out_actions, batch_size) # Ouptut layer 
+        if(adam == True):
+            
+            self.l1 = linear_adam(in_states, h1_nodes, batch_size)   # Linear layer with adam optimizer
+            self.l2 = linear_adam(h1_nodes, h1_nodes, batch_size)   # Linear layer with adam optimizer
+            self.l3 = linear_adam(h1_nodes, out_actions, batch_size)   # Linear layer with adam optimizer
+        else:
+            self.l1 = Linear(in_states, h1_nodes, batch_size)   # Linear layer with gradient descent
+            self.l2 = Linear(h1_nodes, h1_nodes, batch_size)   # Linear layer with gradient descent
+            self.l2 = Linear(h1_nodes, out_actions, batch_size)   # Linear layer with gradient descent
+
+        # Define activation function
+        if(relu == True):
+            self.a1 = Relu(h1_nodes, batch_size) # Relu activation layer
+            self.a2 = Relu(h1_nodes, batch_size) # Relu activation layer
+        else:
+            self.a1 = Sigmoid(h1_nodes, batch_size) # Sigmoid activation layer
+            self.a2 = Sigmoid(h1_nodes, batch_size) # Sigmoid activation layer
 
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         
         x = np.array(x)
         x = x.reshape(x.shape[0], -1)  # Flatten the input
-        x = x.T # TODO THAT DOESNT SEEM RIGHT BUT IT SEEMS TO WORK
+        x = x.T
         x = self.l1.forward(x)    # Linear layer
-        x = self.s1.forward(x)    # Apply sigmoid activation function
+        x = self.a1.forward(x)    # Apply sigmoid activation function
         x = self.l2.forward(x)    # Linear layer
-        x = self.s2.forward(x)    # Apply sigmoid activation function
+        x = self.a2.forward(x)    # Apply sigmoid activation function
         x = self.l3.forward(x)    # Linear layer
 
         return x[0]
     
     def backward(self, x: np.ndarray) -> None:
         x = self.l3.backward(x)
-        x = self.s2.backward(x)
+        x = self.a2.backward(x)
         x = self.l2.backward(x)
-        x = self.s1.backward(x)
+        x = self.a1.backward(x)
         x = self.l1.backward(x)
     
     def update(self,lr) -> None:
@@ -257,95 +266,44 @@ class NN:
 
     def print_weights(self):
         # Prints weights of the neurons
-        print("Default Neural Network")
-        print("First_layer: ", self.l1.get_weights()) 
-        print("Second_layer: ", self.l2.get_weights()) 
-        print("Third_layer: ", self.l3.get_weights())
+        print("Three Layer Neural Network")
+        print("First layer: ", self.l1.get_weights()) 
+        print("Second layer: ", self.l2.get_weights()) 
+        print("Third layer: ", self.l3.get_weights())
 
 
-
-# Define model
-class NN_Relu:
-    def __init__(self, in_states, h1_nodes, out_actions, batch_size: int):
-        super(NN_Relu, self).__init__()
-        #super().__init__()
+class two_layers_neural_network:
+    def __init__(self, in_states, h1_nodes, out_actions, batch_size: int, adam: bool, relu: bool):
+        super(two_layers_neural_network, self).__init__()
+        self.in_features = in_states
 
         # Define network layers
-        self.in_features = in_states
-        self.l1 = Linear_ADAM(in_states, h1_nodes, batch_size)   # Linear layer
-        self.r1 = Relu(h1_nodes, batch_size) # Relu layer
-        self.l2 = Linear_ADAM(h1_nodes, h1_nodes, batch_size)   # Linear layer
-        self.r2 = Relu(h1_nodes, batch_size) # Relu layer
-        self.l3 = Linear_ADAM(h1_nodes, out_actions, batch_size) # Ouptut layer 
+        if(adam == True):
+            
+            self.l1 = linear_adam(in_states, h1_nodes, batch_size)   # Linear layer with adam optimizer
+            self.l2 = linear_adam(h1_nodes, out_actions, batch_size)   # Linear layer with adam optimizer
+        else:
+            self.l1 = Linear(in_states, h1_nodes, batch_size)   # Linear layer with gradient descent
+            self.l2 = Linear(h1_nodes, out_actions, batch_size)   # Linear layer with gradient descent
 
-
-    def forward(self, x: np.ndarray) -> np.ndarray:
-        
-        x = np.array(x)
-        x = x.reshape(x.shape[0], -1)  # Flatten the input
-        x = x.T # TODO THAT DOESNT SEEM RIGHT BUT IT SEEMS TO WORK
-        x = self.l1.forward(x)    # Linear layer
-        x = self.r1.forward(x)    # Apply relu activation function
-        x = self.l2.forward(x)    # Linear layer
-        x = self.r2.forward(x)    # Apply relu activation function
-        x = self.l3.forward(x)    # Linear layer
-        return x[0]
-    
-    def backward(self, x: np.ndarray) -> None:
-        x = self.l3.backward(x)
-        x = self.r2.backward(x)
-        x = self.l2.backward(x)
-        x = self.r1.backward(x)
-        x = self.l1.backward(x)
-    
-    def update(self,lr) -> None:
-        self.l1.update(lr)
-        self.l2.update(lr)
-        self.l3.update(lr)
-
-    def get_weights(self):
-        # Returns weights of the neurons
-        return [self.l1.get_weights(), self.l2.get_weights(), self.l3.get_weights()]
-
-    def set_weights(self, w):
-        # Sets weights of the neurons
-        self.l1.set_weights(w[0])
-        self.l2.set_weights(w[1])
-        self.l3.set_weights(w[2])
-
-    def print_weights(self):
-        # Prints weights of the neurons
-        print("Neural Network with ReLU")
-        print("First_layer: ", self.l1.get_weights()) 
-        print("Second_layer: ", self.l2.get_weights()) 
-        print("Third_layer: ", self.l3.get_weights())
-
-
-
-
-class NN_small:
-    def __init__(self, in_states, h1_nodes, out_actions, batch_size: int):
-        super(NN_small, self).__init__()
-
-        # Define network layers
-        self.in_features = in_states
-        self.l1 = Linear_ADAM(in_states, h1_nodes, batch_size)   # Linear layer
-        self.r1 = Relu(h1_nodes, batch_size) # ReLU layer
-        self.l2 = Linear_ADAM(h1_nodes, out_actions, batch_size)   # Linear layer
-
+        # Define activation function
+        if(relu == True):
+            self.a1 = Relu(h1_nodes, batch_size) # Relu activation layer
+        else:
+            self.a1 = Sigmoid(h1_nodes, batch_size) # Sigmoid activation layer
 
 
     def forward(self, x: np.ndarray) -> np.ndarray:
         x = x.reshape(x.shape[0], -1)  # Flatten the input
-        x = x.T # TODO THAT DOESNT SEEM RIGHT BUT IT SEEMS TO WORK
+        x = x.T 
         x = self.l1.forward(x)    # Linear layer
-        x = self.r1.forward(x)    # Apply ReLU activation function
+        x = self.a1.forward(x)    # Apply ReLU activation function
         x = self.l2.forward(x)    # Linear layer
         return x[0]
     
     def backward(self, x: np.ndarray) -> None:
         x = self.l2.backward(x)
-        x = self.r1.backward(x)
+        x = self.a1.backward(x)
         x = self.l1.backward(x)
     
     def update(self,lr) -> None:
@@ -363,9 +321,9 @@ class NN_small:
 
     def print_weights(self):
         # Prints weights of the neurons
-        print("Smaller Neural Network")
-        print("First_layer: ", self.l1.get_weights()) 
-        print("Second_layer: ", self.l2.get_weights()) 
+        print("Two Layer Neural Network")
+        print("First layer: ", self.l1.get_weights()) 
+        print("Second layer: ", self.l2.get_weights()) 
 
 
 # ---------------------------------------------------------
@@ -409,27 +367,23 @@ class FrozenLakeDQL():
 
     # Hyperparameters which are obsolete when using ADAM
     learning_rate_a = 0.1      # learning rate (alpha), default: 0.001 (tutorial) or 0.1 (empirical)
-    learning_rate_reductions = 1.0 # what part of the epochs needs to pass until we reduce the learning rate, default: 20
-    learning_rate_divisor = 1.0 # the number which divides the learning rate, default: 1.2
+    learning_rate_reductions = 20.0 # what part of the epochs needs to pass until we reduce the learning rate, default: 20
+    learning_rate_divisor = 1.2 # the number which divides the learning rate, default: 1.2
     
 
 
     # Train the FrozeLake environment
-    def train(self, episodes, render = False, is_slippery = False, relu = False, small = False, hidden_layer_size = 16):
+    def train(self, episodes, render = None, is_slippery = False, relu = True, two_layers = False, adam = True, hidden_layer_size = 16):
 
         # Create FrozenLake instance
 
-        # Deciding whether training should be rendered (recommended only for debugging or presentation)
-        curr_render_mode = None
-        if (render == True):
-            curr_render_mode = 'human'
         
         # Creating environment
         env = gym.make(
             'FrozenLake-v1', 
             map_name="4x4",
             is_slippery=is_slippery, 
-            render_mode=curr_render_mode,
+            render_mode=render,
             reward_schedule=(1, 0.0, 0.0)  #default: 1, 0.0, 0.0
         )
         loss_list = []   
@@ -446,20 +400,16 @@ class FrozenLakeDQL():
         memory = ReplayMemory(self.replay_memory_size)
 
         # Create policy and target network. Number of nodes in the hidden layer can be adjusted.
-        if(relu == True): 
-            policy_dqn = NN_Relu(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size)
+        if(two_layers == True):
+            policy_dqn = two_layers_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)
 
-            target_dqn = NN_Relu(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size)
-        elif(small == True):
-            policy_dqn = NN_small(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size)
-
-            target_dqn = NN_small(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size)
+            target_dqn = two_layers_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)
         else: 
-            policy_dqn = NN(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size)
+            policy_dqn = three_layers_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)
 
-            target_dqn = NN(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size)
+            target_dqn = three_layers_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)
 
-        # Make the target and policy networks the same (copy weights/biases from one network to the other)
+        # Make the target and policy networks the same (copy weights and biases from one network to the other)
         target_dqn.set_weights(policy_dqn.get_weights())
 
         # List to keep track of rewards collected per episode. Initialize list to 0's.
@@ -473,16 +423,16 @@ class FrozenLakeDQL():
 
         # Track number of steps taken. Used for syncing policy => target network.
         step_count=0
-            
+
         for i in tqdm.tqdm(range(episodes)):
-            # For debugging: If we print other stuff, we don't want a progress bar
+            # For debugging: If we print stuff during epochs, it breaks the progress bar
             # if(i%500 == 0):
             #     print("Epoch: ", i)
             
             # For comparison: a primitive learning rate scheduler
-            # Not needed when using ADAM
-            # if(i % (episodes/self.learning_rate_reductions) == 0):  # possible augmentation: 1. constant learning rate at first and 2. learning rate reset
-            #     lr = lr/self.learning_rate_divisor 
+            if(adam == False):
+                if(i % (episodes/self.learning_rate_reductions) == 0):  # possible augmentation: 1. constant learning rate at first and 2. learning rate reset
+                    lr = lr/self.learning_rate_divisor 
 
             # For plotting the learning rate
             learning_rate_history.append(lr)
@@ -536,8 +486,9 @@ class FrozenLakeDQL():
         # Close environment
         env.close()
 
-
-        print("Reached the goal this many times: ", (rewards_per_episode > 0).sum())
+        # # Debugging logs:
+        # # Log how often the agent won the game
+        # print("Reached the goal this many times: ", (rewards_per_episode > 0).sum())
 
         # Saving the model
         with open('policy_dqn.pkl', 'wb') as file:
@@ -620,9 +571,9 @@ class FrozenLakeDQL():
         gradient = compute_gradient(np.concatenate(target_q_list), np.concatenate(current_q_list))
         
         # To save input in Neural Network
-        inp = [np.array(self.state_to_dqn_input(state, num_states)) for state, action, new_state, reward, terminated in mini_batch]
+        inp = [np.array(self.state_to_dqn_input(state, num_states)) for state, _, _, _, _ in mini_batch]
         inp = np.vstack(inp)
-        policy_dqn.forward(inp.T) # TODO Sketchy
+        policy_dqn.forward(inp.T) 
 
         policy_dqn.backward(gradient)
         policy_dqn.update(learning_rate)
@@ -644,29 +595,33 @@ class FrozenLakeDQL():
         return input_tensor
 
     # Run the FrozeLake environment with the learned policy
-    def test(self, episodes, is_slippery = False, render = True, relu = False, small = False, hidden_layer_size = 16):
+    def test(self, episodes, is_slippery = False, render = None, relu = True, two_layers = True, adam = True, hidden_layer_size = 16):
         succesful = 0
 
-        # Setting render mode
-        rendered = None
-        if (render == True):
-            rendered = 'human'
 
         # Create FrozenLake instance
-        env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=is_slippery, render_mode=rendered)
+        env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=is_slippery, render_mode=render)
 
         # Initializing
         num_states = env.observation_space.n
         num_actions = env.action_space.n
 
         # Initialize Neural Network
-        if (relu == True):
-            policy_dqn = NN_Relu(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size) 
-        elif (small == True):
-            policy_dqn = NN_small(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size) 
-        else:
-            policy_dqn = NN(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size) 
+        if(two_layers == True):
+            policy_dqn = two_layers_neural_network(in_states=num_states, 
+                                     h1_nodes=hidden_layer_size, 
+                                     out_actions=num_actions, 
+                                     batch_size = self.mini_batch_size, 
+                                     adam = adam, 
+                                     relu = relu)
 
+        else: 
+            policy_dqn = three_layers_neural_network(in_states=num_states, 
+                                     h1_nodes=hidden_layer_size, 
+                                     out_actions=num_actions, 
+                                     batch_size = self.mini_batch_size, 
+                                     adam = adam, 
+                                     relu = relu)   
 
         # Loading the model
         with open('policy_dqn.pkl', 'rb') as file:
@@ -688,11 +643,13 @@ class FrozenLakeDQL():
                 # Execute action
                 state,reward,terminated,truncated,_ = env.step(action)
 
-        # For keeping track of successesful training sessions       
+        
+           
+        # For keeping track of successesful training sessions   
         if (reward == 1):
-            print("The agent reached the goal!")
             succesful = 1
-
+            # Debugging Logs:
+            # print("The agent reached the goal!")
 
         # Closing the environment
         env.close()
@@ -704,12 +661,14 @@ class FrozenLakeDQL():
         return succesful
 
     
-    # Print DQN: state, best action, q values
     def print_dqn(self, dqn):
+        # Print DQN: state, best action, q values
+
         # Get number of input nodes
         num_states = dqn.in_features
 
-        ACTIONS = ['L','D','R','U']     # for printing 0,1,2,3 => L(eft),D(own),R(ight),U(p)
+        # for printing 0,1,2,3 => L(eft),D(own),R(ight),U(p)
+        ACTIONS = ['L','D','R','U']     
 
         # Loop each state and print policy to console
         for s in range(num_states):
@@ -729,26 +688,32 @@ class FrozenLakeDQL():
 
 if __name__ == '__main__':
     # Initializing
-    is_slippery_surface = False # set to True to make the agent sometimes doing the wrong movement command
-    render_training = False # set to True to see the training on a gaming screen 
-    render_testing = False # set to True to see the testing on a gaming screen
+    is_slippery_surface = False # set to True to make the agent sometimes doing the wrong movement command, default: False
+    render_training = None # set to 'human' to see the training on a gaming screen
+    render_testing = None # set to 'human' to see the testing on a gaming screen
     test_run_number = 3 # How often we let it show what it learned 
-    relu = False # set to true to change the activation function from sigmoid to relu
-    small = True # set to true to delete the hidden layer
-    Adam = True #TODO implement swtich between adam and less sophisticated learning rate schedulers
 
-    number_of_experiments = 1 # How many NNs we train
-    hidden_layer_size = 16  
-    epoch_number = 1_000 # default: 1_000 (arbitrary)
+    relu = True # set to true to change the activation function from sigmoid to relu, default: True
+    two_layers = True # set to true to delete the hidden layer, default: True
+    adam = True # set to true to use ADAM, default: True
 
+    number_of_experiments = 50 # How many NNs we train
+    hidden_layer_size = 16 # default: 16
+    epoch_number = 1_000 # default: 1_000 
 
     total_start = time.time()
+
+
     sum_of_successes = 0
     
 
     for i in np.arange(number_of_experiments)+1:
         print("Experiment number: ", i)
-        start = time.time()
+
+        # Performance logging:
+        # start = time.time()
+
+        # Initialize training class
         frozen_lake = FrozenLakeDQL()
         
         # Training 
@@ -757,25 +722,28 @@ if __name__ == '__main__':
             render = render_training, 
             is_slippery=is_slippery_surface, 
             relu = relu, 
-            small = small, 
-            hidden_layer_size = hidden_layer_size)
+            two_layers = two_layers, 
+            hidden_layer_size = hidden_layer_size,
+            adam = adam)
 
-        # Measuring time
-        end = time.time()
-        print("Trained took: ", end - start)
+        # Performance logging:
+        # # Measuring time
+        # end = time.time()
+        # print("Training took: ", end - start)
 
-        # Testing
+        # Testing and keeping track of successes
         sum_of_successes += frozen_lake.test(test_run_number,
                                             is_slippery=is_slippery_surface, 
                                             render = render_testing, 
                                             relu = relu, 
-                                            small = small, 
-                                            hidden_layer_size= hidden_layer_size)
+                                            two_layers = two_layers, 
+                                            hidden_layer_size= hidden_layer_size,
+                                            adam = adam)
         
-        
-        print("Successes so far: ", sum_of_successes)
-        print("Proportion: ", sum_of_successes/i) 
-        print("")
+        # Debug logging:
+        # print("Successes so far: ", sum_of_successes)
+        # print("Proportion so far: ", sum_of_successes/i) 
+        # print("")
 
     
     print("Number of successes: ", sum_of_successes)
@@ -783,7 +751,7 @@ if __name__ == '__main__':
 
     # Measuring time
     total_end = time.time()
-    print("Trained took: ", total_end - total_start)
+    print("Training took: ", total_end - total_start)
 
 
     
