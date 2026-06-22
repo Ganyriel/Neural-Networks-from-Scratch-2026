@@ -20,19 +20,22 @@ Remark:
 contains an hands-on approach to Q-Learning and simpler implementation of RL.
 This approach was chosen to get wider understanding of different possibilites on how to move forward.
 This file was created using the Tutorial on the [Gymnasium Library Documentation ](https://gymnasium.farama.org/)
+ 
+#### BlackJackDeepQ
+contains an unclean implementation of deep Q learning for Blackjack. The agent's success rate is 40-42%. Requires some cleanup and hyperparameter tuning
+
+## Durak Folder
+#### DurakNotes.odt
+contains a description of the game and design ideas for a agent and environment.
 
 #### DurakQLearning
 contains a sample for creating a Durak Q Learning approach.
 Has to be altered and adjusted to fit the Environment. We are gonna see how that plays out.
 
 #### DurakEnvironment
-contains a not yet fully implemented Environment for Durak. Yet it serves as a sample, that still needs a lot adjjustment.
+contains a not yet fully implemented Environment for Durak. Yet it serves as a sample, that still needs a lot adjjustme>
 I'm doing this to understand custom environment creation and wrappers etc.
-After some research and game analysis and so on. Durak seems not that easy to solve. Im moving onto an easier game to learn Environment creation.
-
-#### BlackJackDeepQ
-contains an unclean implementation of deep Q learning for Blackjack. The agent's success rate is 40-42%. Requires some cleanup and hyperparameter tuning
-
+After some research and game analysis and so on. Durak seems not that easy to solve.
 
 
 ## Ideas for improving training
