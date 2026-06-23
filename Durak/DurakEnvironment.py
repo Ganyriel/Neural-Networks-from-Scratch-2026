@@ -4,13 +4,20 @@ import gymnasium as gym
 from gymnasium import spaces
 import random
 
+
+# Card representations
+CARDS = ['6', '7', '8', '9', '10', 'B', 'Q', 'K', 'A']  # 6-10 + Jack(B), Queen(Q), King(K), Ace(A)
+SUITS = ['♠', '♥', '♦', '♣']  # Spades, Hearts, Diamonds, Clubs
+TRUMP_VALUES = {card: i for i, card in enumerate(CARDS)}
+
 class DurakEnv(gym.Env):
     """
     A custom environment for a card game.
     
     State Space: 
         - Player hand (encoded)
-        - Opponent hand (partial observability or full depending on rules)
+        - Trump card is visible
+        - remember all cards that are successfully defended
         - Deck remaining count
         - Current turn
         
@@ -28,29 +35,42 @@ class DurakEnv(gym.Env):
         self.deck_size = deck_size
         self.max_hand_size = max_hand_size
         self.current_player = 0
-        self.deck = []
-        self.hands = [[] for _ in range(num_players)]
-        self.scores = [0] * num_players
-        self.game_over = False
         
-        # --- Action Space ---
-        # We define actions as integers: 
-        # 0 to (max_hand_size - 1): Play card at index i
-        # max_hand_size: Draw card
-        # max_hand_size + 1: Pass
-        self.action_space = spaces.Discrete(max_hand_size + 2)
+        # Card index mapping (suit * 9 + rank)
+        self.card_map = {}
+        idx = 0
+        for suit in SUITS:
+            for card in CARDS:
+                self.card_map[f"{card}{suit}"] = idx
+                idx += 1
         
-        # --- Observation Space ---
-        # Flattened vector: [player_hand_encoded, opponent_hand_encoded, deck_count, turn_indicator]
-        # Assuming cards are encoded as integers 0-51 (standard deck)
-        # We pad hands to max_hand_size with -1 if empty
-        obs_dim = (max_hand_size * 2) + 1 + 1 # Hand1 + Hand2 + DeckCount + Turn
+        self.total_cards = len(CARDS) * len(SUITS)  # 36 cards
+        
+        # Define observation space
+        # We'll track: player hand (one-hot), known cards, deck status, current state
+        obs_dim = self._calculate_observation_dimension()
         self.observation_space = spaces.Box(
-            low=-1, 
-            high=deck_size, 
-            shape=(obs_dim,), 
-            dtype=np.int32
+            low=0, high=1, shape=(obs_dim,), dtype=np.float32
         )
+        
+        # Action space: play card or pass
+        # Max possible actions = number of cards + 1 (for pass/defend) 
+        # TODO There are multiple cards to be attacked with. Fix this please.
+        action_dim = self.total_cards + 1
+        self.action_space = spaces.Discrete(action_dim)
+        
+        # Game state
+        self.deck = []
+        self.player_hands = [[] for _ in range(n_players)]
+        self.table_cards = []  # Cards currently on table (attack/defense pairs)
+        self.trump_suit = None
+        self.current_attacker = 0
+        self.current_defender = 0
+        self.game_phase = 'preparation'  # preparation, attack, defend, draw
+        self.first_trump_player = None
+        self.cards_played_this_round = set()
+
+############################
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
