@@ -573,9 +573,26 @@ class FrozenLakeDQL():
         policy_dqn.update(learning_rate)
 
         return loss
+
+    # Different function for encoding (only one 1), the neural networks learns worse with it
+    # def state_to_dqn_input(self, state, num_states:int):
+    #     '''
+    #     Converts an state (tuple) to a tensor representation.
         
+    #     Return: tensor e.g. ([0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0.])
+    #     '''
+        
+    #     input_tensor = np.zeros(num_states)
+
+
+    #     input_tensor[(state[0]-1)+32*(state[1]-1)+352*state[2]] = 1
+        
+    #     if(np.sum(input_tensor) != 1):
+    #         raise ValueError("Method state_to_dqn_input brocken!")
+       
+    #     return input_tensor
    
-    # TODO Check if function works as intended
+
     def state_to_dqn_input(self, state, num_states:int):
         '''
         Converts an state (tuple) to a tensor representation.
@@ -586,12 +603,13 @@ class FrozenLakeDQL():
         input_tensor = np.zeros(num_states)
 
 
-        input_tensor[state[0]] = 1
-        input_tensor[state[1]+32] = 1
+        input_tensor[state[0]-1] = 1
+        input_tensor[state[1]+31] = 1
         input_tensor[state[2]+43] = 1
 
         if(np.sum(input_tensor) != 3):
             raise ValueError("Method state_to_dqn_input brocken!")
+            #
         return input_tensor
 
     # Run the FrozeLake environment with the learned policy
