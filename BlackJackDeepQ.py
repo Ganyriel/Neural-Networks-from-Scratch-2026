@@ -607,9 +607,9 @@ class FrozenLakeDQL():
         input_tensor[state[1]+31] = 1
         input_tensor[state[2]+43] = 1
 
+        # This is to check whether the code is malfunctioning, it can be removed soon
         if(np.sum(input_tensor) != 3):
             raise ValueError("Method state_to_dqn_input brocken!")
-            #
         return input_tensor
 
     # Run the FrozeLake environment with the learned policy
