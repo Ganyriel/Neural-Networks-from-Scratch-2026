@@ -47,13 +47,13 @@ class DurakEnv(gym.Env):
         self.total_cards = len(CARDS) * len(SUITS)  # 36 cards
         
         # Define observation space
-        # We'll track: player hand (one-hot), known cards, deck status, current state
+        # We'll track: own hand, table cards, trump Info, current state
         obs_dim = self._calculate_observation_dimension()
         self.observation_space = spaces.Box(
             low=0, high=1, shape=(obs_dim,), dtype=np.float32
         )
         
-        # Action space: play card or pass
+        # Action space: play card or pass !!! but passing is not an option?
         # Max possible actions = number of cards + 1 (for pass/defend) 
         # TODO There are multiple cards to be attacked with. Fix this please.
         action_dim = self.total_cards + 1
@@ -75,19 +75,18 @@ class DurakEnv(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         
-        # Reset game state
-        self.deck = list(range(self.deck_size))
+        # Create full deck and
+        self.deck = [f"{c}{s}" for s in SUITS for c in CARDS]
         random.shuffle(self.deck)
-        self.hands = [[] for _ in range(self.num_players)]
-        self.scores = [0] * self.num_players
-        self.current_player = 0
-        self.game_over = False
         
-        # Deal initial hands
-        for _ in range(self.max_hand_size):
-            for p in range(self.num_players):
-                if self.deck:
-                    self.hands[p].append(self.deck.pop())
+        # Deal hands (always the same, but not strictly according to rules, due to simplicity)
+        self.player_hands = [[] for _ in range(self.n_players)]
+        for i in range(self.n_players):
+            for _ in range(self.max_cards_per_hand):
+                self.player_hands[i].append(self.deck.pop())
+        
+        # Reveal Trump
+        
         
         observation = self._get_observation()
         info = {}
