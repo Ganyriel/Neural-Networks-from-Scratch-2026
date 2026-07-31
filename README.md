@@ -24,6 +24,13 @@ This file was created using the Tutorial on the [Gymnasium Library Documentation
 #### BlackJackDeepQ
 contains an unclean implementation of deep Q learning for Blackjack. The agent's success rate is 40-42%. Requires some cleanup and hyperparameter tuning
 
+#### MountainCarDeepQ
+contains a training file for MountainCar Deep Q learning. It has very high success rate.
+
+#### PongDeepQ
+contains an incomplete implementation of Deep Q learning for Pong. It is currently not working (testing often has no ball for unknown reason)
+
+
 ## Durak Folder
 #### DurakNotes.odt
 contains a description of the game and design ideas for a agent and environment.
