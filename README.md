@@ -46,7 +46,15 @@ contains a training file for MountainCar Deep Q learning. It has very high succe
 ## Atari-Games Folder
 ### Pong Folder
 #### PongDeepQ
-contains an incomplete implementation of Deep Q learning for Pong. It is currently not working (testing often has no ball for unknown reason)
+contains an incomplete implementation of Deep Q learning for Pong
+
+Issues:
+- the learning takes too long for good testing
+- it is uncertain whether the training works as intended, since the reset of the environment seems off after losing a point (it resets to the same state)
+
+### Other-Game Folder
+#### GameDeepQ
+is an experimental file for training a Neural Network on an Atari Game
 
 
 

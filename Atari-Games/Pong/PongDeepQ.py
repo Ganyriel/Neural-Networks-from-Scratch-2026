@@ -84,8 +84,8 @@ class linear_adam:
         # self.bias = np.random.normal(size=(out_features,)) * np.sqrt(1.0 / in_features)
 
         # Initialization of weights like in torch
-        self.k = np.sqrt(1/(in_features)) # TODO find out which number works best default: 15, 20
-        self.rng = np.random.default_rng() # DONT use seed=42
+        self.k = np.sqrt(1/(in_features)) 
+        self.rng = np.random.default_rng() 
         self.weight = self.rng.uniform(-self.k,self.k, size=(in_features, out_features))
         self.bias = self.rng.uniform(-self.k,self.k, size=(out_features,))
 
@@ -365,36 +365,36 @@ class ReplayMemory():
     def __len__(self):
         return len(self.memory)
 
-# MountainCar Deep Q-Learning
-class MountainCarDQL():
+# Pong Deep Q-Learning
+class PongDQL():
     # Hyperparameters (adjustable)
-    discount_factor_g = 0.9         # discount rate (gamma), default: 0.9  
-    network_sync_rate = 50_000          # number of steps the agent takes before syncing the policy and target network, default: 10
-    replay_memory_size = 10_000       # size of replay memory, default: 1_000
+    discount_factor_g = 0.9         # discount rate of reward (gamma), default: 0.9  
+    network_sync_rate = 500          # number of steps the agent takes before syncing the policy and target network, default: 
+    replay_memory_size = 10_000       # size of replay memory, default:
     mini_batch_size = 32        # size of the training data set sampled from the replay memory, default: 32
 
     # Hyperparameters which are obsolete when using ADAM
-    learning_rate_a = 0.1      # learning rate (alpha), default: 0.001 (tutorial) or 0.1 (empirical)
-    learning_rate_reductions = 20.0 # what part of the epochs needs to pass until we reduce the learning rate, default: 20
-    learning_rate_divisor = 1.2 # the number which divides the learning rate, default: 1.2
+    learning_rate_a = 0.1      # learning rate (alpha), default: 
+    learning_rate_reductions = 20.0 # what part of the epochs needs to pass until we reduce the learning rate, default: 
+    learning_rate_divisor = 1.2 # the number which divides the learning rate, default: 
     
   
 
 
-    # Train the MountainCar environment
+    # Train the Pong environment
     def train(self, episodes, render = None, relu = True, two_layers = False, adam = True, hidden_layer_size = 16):
-
-        # Create MountainCar instance
-
         
         # Creating environment
-        env = gym.make('ALE/Breakout-v5', render_mode=render, obs_type="grayscale")
+        env = gym.make(#'ALE/Breakout-v5', # Not working for unkown reason
+                        'PongNoFrameskip-v4',
+                        render_mode=render, 
+                        obs_type="grayscale")
         
         
         loss_list = []   
 
         # Initializing constants
-        num_states = np.prod(env.observation_space.shape) # expecting 2: position & velocity
+        num_states = np.prod(env.observation_space.shape) 
         num_actions = env.action_space.n
 
         
@@ -449,7 +449,6 @@ class MountainCarDQL():
             state = env.reset()[0]  # Initialize to state 0
             terminated = False      # True when agent reaches goal
             truncated = False       # True when steps exceed limit
-            # steps = 0
 
 
             # Agent navigates map until it reaches goal (terminated), or has taken 200 actions (truncated).
@@ -457,7 +456,7 @@ class MountainCarDQL():
                 # Select action based on epsilon-greedy
                 if random.random() < epsilon:
                     # select random action
-                    action = env.action_space.sample() # actions: 1 = left, 2=nothing, 3=right
+                    action = env.action_space.sample() 
                 else:
                     # select best action   
                     action = policy_dqn.forward(self.state_to_dqn_input(state)).argmax().item()
@@ -465,8 +464,8 @@ class MountainCarDQL():
                 # Execute action
                 new_state,reward,terminated,truncated,_ = env.step(action)
 
-                
-
+                # Debug log
+                # print("Action taken: ", action)
                       
                 # Keep track of the rewards collected per episode.
                 rewards_per_episode[i] += reward
@@ -483,10 +482,6 @@ class MountainCarDQL():
                 # Increment step counter
                 step_count+=1
 
-                # steps += 1
-
-                # if(steps == 2_000):
-                #     truncated = True
 
 
             # Keep track of victories
@@ -520,7 +515,7 @@ class MountainCarDQL():
 
 
         # Saving the model
-        with open("mountaincar_dql.pkl", 'wb') as file:
+        with open("pong_dql.pkl", 'wb') as file:
             pickle.dump(policy_dqn.get_weights(), file)
             
         print("Best reward: ", best_rewards)
@@ -563,7 +558,7 @@ class MountainCarDQL():
         plt.title("Learning rate in each episode")
 
         # Save plots
-        plt.savefig('mountaincar_dql.png')
+        plt.savefig('pong_dql.png')
 
 
     # Optimize policy network
@@ -611,18 +606,20 @@ class MountainCarDQL():
         return loss
         
    
-   
+    
     def state_to_dqn_input(self, state):
-        #state = state[64:95, 36:60, 1] #TODO
-        # print(state.shape)
+        # Flattens the observation array
         return state.flatten()
 
-    # Run the MountainCar environment with the learned policy
+    # Run the Pong environment with the learned policy
     def test(self, episodes, render = None, relu = True, two_layers = True, adam = True, hidden_layer_size = 16):
         succesful = 0
 
-        # Create MountainCar instance
-        env = gym.make('ALE/Breakout-v5', render_mode=render, obs_type="grayscale")
+        # Create Pong instance
+        env = gym.make(#'ALE/Breakout-v5', # Not working for unkown reason
+                        'PongNoFrameskip-v4',
+                        render_mode=render, 
+                        obs_type="grayscale")
         
         # Initializing constants
         num_states = np.prod(env.observation_space.shape) # expecting 2: position & velocity
@@ -646,26 +643,32 @@ class MountainCarDQL():
                                      adam = adam, 
                                      relu = relu)   
 
+        
         # Loading the model
-        with open("mountaincar_dql.pkl", 'rb') as file:
+        with open("pong_dql.pkl", 'rb') as file:
             policy_model = pickle.load(file)
         policy_dqn.set_weights(policy_model)
-        
+
 
         # Testing
         for _ in range(episodes):
             state = env.reset()[0]  # Initialize to state 0
-            terminated = False      # True when agent falls in hole or reached goal
-                       
+            terminated = False      
+            truncated = False  
+
 
             # Agent navigates map until it falls into a hole (terminated), reaches goal (terminated), or has taken 200 actions (truncated).
-            while(not terminated ):  
+            while(not terminated and not truncated):  
+  
                 # Select best action   
                 action = policy_dqn.forward(self.state_to_dqn_input(state)).argmax().item()
+                
+                # Debug log
+                # print("Chosen action: ", action)
 
                 # Execute action
                 state,_,terminated,truncated,_ = env.step(action)
-
+  
             if (terminated == True):
                 succesful += 1
 
@@ -684,12 +687,12 @@ if __name__ == '__main__':
     render_testing = 'human' # set to 'human' to see the testing on a gaming screen
 
     relu = True # set to true to change the activation function from sigmoid to relu, default: True
-    two_layers = True # set to true to delete the hidden layer, default: True
+    two_layers = False # set to true to delete the hidden layer, default: True
     adam = True # set to true to use ADAM, default: True
 
     number_of_experiments = 1 # How many NNs we train
-    hidden_layer_size = 20 # default: 20
-    epoch_number = 100 # default: 1_000 
+    hidden_layer_size = 64 # default: 
+    epoch_number = 10 # default: 
 
     total_start = time.time()
 
@@ -702,11 +705,11 @@ if __name__ == '__main__':
         # start = time.time()
 
         # Initialize training class
-        mountain_car = MountainCarDQL()
+        pong = PongDQL()
         
         # Training 
         if(testing_only == False):
-            mountain_car.train(
+            pong.train(
                 epoch_number, 
                 render = render_training, 
                 relu = relu, 
@@ -720,7 +723,7 @@ if __name__ == '__main__':
         # print("Training took: ", end - start)
 
         # Testing and keeping track of successes
-        proportion_of_successes = mountain_car.test(test_run_number,
+        proportion_of_successes = pong.test(test_run_number,
                                             render = render_testing, 
                                             relu = relu, 
                                             two_layers = two_layers, 
