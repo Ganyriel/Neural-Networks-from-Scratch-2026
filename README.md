@@ -52,6 +52,10 @@ Issues:
 - the learning takes too long for good testing
 - it is uncertain whether the training works as intended, since the reset of the environment seems off after losing a point (it resets to the same state)
 
+#### PongTutorial
+contains a file from the internet which implements the parallel learning of several agents
+
+
 ### Other-Game Folder
 #### GameDeepQ
 is an experimental file for training a Neural Network on an Atari Game
