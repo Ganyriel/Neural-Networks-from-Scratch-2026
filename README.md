@@ -1,11 +1,6 @@
 # Neural-Networks-from-Scratch-2026
 Advanced Practical called "Neural Networks from Scratch"
 
-## Files to be sorted
-#### BlackJackQLearning
-contains an hands-on approach to Q-Learning and simpler implementation of RL.
-This approach was chosen to get wider understanding of different possibilites on how to move forward.
-This file was created using the Tutorial on the [Gymnasium Library Documentation ](https://gymnasium.farama.org/)
 
 
 ## Easier-Games Folder
@@ -34,6 +29,11 @@ Issue: Cupy is significantly slower than numpy. Probably due to copying (gpu mos
 ### BlackJack Folder 
 #### BlackJackDeepQ
 contains an unclean implementation of deep Q learning for Blackjack. The agent's success rate is 40-42%. Requires some cleanup and hyperparameter tuning
+
+#### BlackJackQLearning
+contains an hands-on approach to Q-Learning and simpler implementation of RL.
+This approach was chosen to get wider understanding of different possibilites on how to move forward.
+This file was created using the Tutorial on the [Gymnasium Library Documentation ](https://gymnasium.farama.org/)
 
 
 
