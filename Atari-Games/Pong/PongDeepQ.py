@@ -334,6 +334,57 @@ class two_layers_neural_network:
         print("Second layer: ", self.l2.get_weights()) 
 
 
+class pong_model_neural_network:
+    def __init__(self, in_states, h1_nodes, out_actions, batch_size: int, adam: bool, relu: bool):
+        super(pong_model_neural_network, self).__init__()
+        self.in_features = in_states
+
+        # Define network layers
+        if(adam == True):
+            
+            self.l1 = linear_adam(in_states, h1_nodes, batch_size)   # Linear layer with adam optimizer
+            self.l2 = linear_adam(h1_nodes, out_actions, batch_size)   # Linear layer with adam optimizer
+        else:
+            self.l1 = Linear(in_states, h1_nodes, batch_size)   # Linear layer with gradient descent
+            self.l2 = Linear(h1_nodes, out_actions, batch_size)   # Linear layer with gradient descent
+
+        # Define activation function
+        self.r1 = Relu(h1_nodes, batch_size) # Relu activation layer
+        #self.s1 = Sigmoid(out_actions, batch_size) # Sigmoid activation layer
+
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        x = x.reshape(x.shape[0], -1)  # Flatten the input
+        x = x.T 
+        x = self.l1.forward(x)    # Linear layer
+        x = self.r1.forward(x)    # Apply ReLU activation function
+        x = self.l2.forward(x)    # Linear layer
+        #x = self.s1.forward(x)    # Apply sigmoid activation function
+        return x[0]
+    
+    def backward(self, x: np.ndarray) -> None:
+        #x = self.s1.backward(x)
+        x = self.l2.backward(x)
+        x = self.r1.backward(x)
+        x = self.l1.backward(x)
+        
+    
+    def update(self,lr) -> None:
+        self.l1.update(lr)
+        self.l2.update(lr)
+
+    def get_weights(self):
+        # Returns weights of the neurons
+        return [self.l1.get_weights(), self.l2.get_weights()]
+
+    def set_weights(self, w):
+        # Sets weights of the neurons
+        self.l1.set_weights(w[0])
+        self.l2.set_weights(w[1])
+
+
+
+
 # ---------------------------------------------------------
 # Loss and gradient of loss
 # ---------------------------------------------------------
@@ -369,7 +420,7 @@ class ReplayMemory():
 class PongDQL():
     # Hyperparameters (adjustable)
     discount_factor_g = 0.9         # discount rate of reward (gamma), default: 0.9  
-    network_sync_rate = 500          # number of steps the agent takes before syncing the policy and target network, default: 
+    network_sync_rate = 1_000          # number of steps the agent takes before syncing the policy and target network, default: 
     replay_memory_size = 10_000       # size of replay memory, default:
     mini_batch_size = 32        # size of the training data set sampled from the replay memory, default: 32
 
@@ -382,7 +433,7 @@ class PongDQL():
 
 
     # Train the Pong environment
-    def train(self, episodes, render = None, relu = True, two_layers = False, adam = True, hidden_layer_size = 16):
+    def train(self, episodes, render = None, relu = True, two_layers = False, pong_model = True, convolutional = True, adam = True, hidden_layer_size = 16):
         
         # Creating environment
         env = gym.make(#'ALE/Breakout-v5', # Not working for unkown reason
@@ -394,8 +445,8 @@ class PongDQL():
         loss_list = []   
 
         # Initializing constants
-        num_states = np.prod(env.observation_space.shape) 
-        num_actions = env.action_space.n
+        num_states = 80*70 #np.prod(env.observation_space.shape) 
+        num_actions = 3 #env.action_space.n
 
         
         # Initializing changing variables
@@ -406,7 +457,13 @@ class PongDQL():
         memory = ReplayMemory(self.replay_memory_size)
 
         # Create policy and target network. Number of nodes in the hidden layer can be adjusted.
-        if(two_layers == True):
+        
+
+        if(pong_model == True):
+            policy_dqn = pong_model_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)
+        
+            target_dqn = pong_model_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)        
+        elif(two_layers == True):
             policy_dqn = two_layers_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)
 
             target_dqn = two_layers_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)
@@ -459,7 +516,7 @@ class PongDQL():
                     action = env.action_space.sample() 
                 else:
                     # select best action   
-                    action = policy_dqn.forward(self.state_to_dqn_input(state)).argmax().item()
+                    action = policy_dqn.forward(self.state_to_dqn_input(state)).argmax().item()+1
 
                 # Execute action
                 new_state,reward,terminated,truncated,_ = env.step(action)
@@ -524,6 +581,7 @@ class PongDQL():
         # Close environment
         env.close()
 
+        """
 
         # Create new graph 
         plt.figure(1)
@@ -559,7 +617,7 @@ class PongDQL():
 
         # Save plots
         plt.savefig('pong_dql.png')
-
+        """
 
     # Optimize policy network
     def optimize(self, mini_batch, policy_dqn, target_dqn, learning_rate):
@@ -608,11 +666,45 @@ class PongDQL():
    
     
     def state_to_dqn_input(self, state):
+
+        # Debug log
+        # print("Before: ", state.shape)
+
+        # Crop the frame.
+        observation_frame = state[35:195,10:150]
+
+        # Debug log
+        # print("After 1st step: ", observation_frame.shape)
+
+        # Downsample the frame by a factor of 2.
+        observation_frame = observation_frame[::2, ::2]
+
+        # Debug log
+        # print("After 2nd step: ", observation_frame.shape)
+        
+
+
+        # Remove the background and apply other enhancements.
+        observation_frame[observation_frame == 107] = 0  # Erase the background 
+        observation_frame[observation_frame == 87] = 0  # Erase the background 
+        observation_frame[observation_frame != 0] = 1  # Set the items (rackets, ball) to 1.
+
+        # Debug log 
+        # if (random.random()<0.025):      
+        #     # print("Light values: ", np.unique(observation_frame))
+        #     plt.imshow(observation_frame, cmap="gray")
+        #     plt.colorbar()
+        #     plt.show()
+
+        # Return the preprocessed frame as a 1D floating-point array.
+        
+        return observation_frame.astype(float).flatten()
+
         # Flattens the observation array
-        return state.flatten()
+        #return state.flatten()
 
     # Run the Pong environment with the learned policy
-    def test(self, episodes, render = None, relu = True, two_layers = True, adam = True, hidden_layer_size = 16):
+    def test(self, episodes, render = None, relu = True, two_layers = True, pong_model = True, convolutional = True, adam = True, hidden_layer_size = 16):
         succesful = 0
 
         # Create Pong instance
@@ -622,19 +714,25 @@ class PongDQL():
                         obs_type="grayscale")
         
         # Initializing constants
-        num_states = np.prod(env.observation_space.shape) # expecting 2: position & velocity
-        num_actions = env.action_space.n
+        num_states = 80*70 # np.prod(env.observation_space.shape) # expecting 2: position & velocity
+        num_actions = 3 #env.action_space.n
 
         
         # Initialize Neural Network
-        if(two_layers == True):
+        if(pong_model == True):
+            policy_dqn = pong_model_neural_network(in_states=num_states, 
+                                                   h1_nodes=hidden_layer_size, 
+                                                   out_actions=num_actions, 
+                                                   batch_size = self.mini_batch_size, 
+                                                   adam = adam, 
+                                                   relu = relu)
+        elif(two_layers == True):
             policy_dqn = two_layers_neural_network(in_states=num_states, 
                                      h1_nodes=hidden_layer_size, 
                                      out_actions=num_actions, 
                                      batch_size = self.mini_batch_size, 
                                      adam = adam, 
                                      relu = relu)
-
         else: 
             policy_dqn = three_layers_neural_network(in_states=num_states, 
                                      h1_nodes=hidden_layer_size, 
@@ -661,7 +759,7 @@ class PongDQL():
             while(not terminated and not truncated):  
   
                 # Select best action   
-                action = policy_dqn.forward(self.state_to_dqn_input(state)).argmax().item()
+                action = policy_dqn.forward(self.state_to_dqn_input(state)).argmax().item()+1
                 
                 # Debug log
                 # print("Chosen action: ", action)
@@ -688,11 +786,13 @@ if __name__ == '__main__':
 
     relu = True # set to true to change the activation function from sigmoid to relu, default: True
     two_layers = False # set to true to delete the hidden layer, default: True
+    pong_model = True # set to true to use a certain pong model, default: True
+    convolutional = False # TODO NOT IMPLEMENTED! set to true to use the convolutional neural network, default: True 
     adam = True # set to true to use ADAM, default: True
 
     number_of_experiments = 1 # How many NNs we train
-    hidden_layer_size = 64 # default: 
-    epoch_number = 10 # default: 
+    hidden_layer_size = 200 # default: 
+    epoch_number = 1_000 # default: 1_000 
 
     total_start = time.time()
 
