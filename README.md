@@ -55,6 +55,10 @@ Issues:
 #### PongTutorial
 contains a file from the internet which implements the parallel learning of several agents
 
+#### PongDeepFrameSkip
+contains an incomplete implementation of Deep Q learning for Pong with SkipFrames from https://danieltakeshi.github.io/2016/11/25/frame-skipping-and-preprocessing-for-deep-q-networks-on-atari-2600-games/
+
+It has similar issues as PongDeepQ
 
 ### Other-Game Folder
 #### GameDeepQ

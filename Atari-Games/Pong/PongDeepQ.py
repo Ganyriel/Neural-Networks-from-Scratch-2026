@@ -446,7 +446,7 @@ class PongDQL():
         loss_list = []   
 
         # Initializing constants
-        num_states = 80*70 # size of the preprocessed input
+        num_states = 80 * 70 # size of the preprocessed input
         num_actions = 3 # up, down and stay
 
         
@@ -547,10 +547,12 @@ class PongDQL():
             # Keep track of highest reward
             if rewards_per_episode[i]>best_rewards:
                 best_rewards = rewards_per_episode[i]
+
+                # Debug log
                 #print(f'Best rewards so far: {best_rewards}')
                 
             # Check if enough experience has been collected (and if at least 1 reward has been collected)
-            if (len(memory) > self.mini_batch_size and training_start == True) : #and np.max(rewards_per_episode) > 0)
+            if (len(memory) > self.mini_batch_size and training_start == True) :
                 mini_batch = memory.sample(self.mini_batch_size)
                 loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn, lr))        
 
@@ -576,7 +578,7 @@ class PongDQL():
         env.close()
 
         
-
+        # Plotting
         # Create new graph 
         plt.figure(1)
         
@@ -612,6 +614,7 @@ class PongDQL():
         # Save plots
         plt.savefig('pong_dql.png')
         
+        
 
     # Optimize policy network
     def optimize(self, mini_batch, policy_dqn, target_dqn, learning_rate):
@@ -621,20 +624,22 @@ class PongDQL():
         for state, action, new_state, reward, terminated in mini_batch:
 
             if terminated: 
-                # Agent receive reward of 0 for reaching goal.
                 # When in a terminated state, target q value should be set to the reward.
                 target = reward
                 
             else:
                 # Calculate target q value 
                 target = reward + self.discount_factor_g * target_dqn.forward(self.state_to_dqn_input(new_state)).max()
-            
+
+            # Preprocess state
+            preprocessed_state = self.state_to_dqn_input(state)
+
             # Get the current set of Q values
-            current_q = policy_dqn.forward(self.state_to_dqn_input(state))
+            current_q = policy_dqn.forward(preprocessed_state)
             current_q_list.append(current_q)
             
             # Get the target set of Q values
-            target_q = target_dqn.forward(self.state_to_dqn_input(state)) 
+            target_q = target_dqn.forward(preprocessed_state) 
 
             # Adjust the specific action to the target that was just calculated
             target_q[action] = target
@@ -683,6 +688,16 @@ class PongDQL():
         # Remove the background and apply other enhancements.
         observation_frame[observation_frame == 107] = 0  # Erase the background 
         observation_frame[observation_frame == 87] = 0  # Erase the background 
+
+        # For catching errors in the preprocessing feature
+        # if(np.unique(observation_frame).shape[0] >4):
+        #     print("Light values: ", np.unique(observation_frame))
+        #     plt.imshow(observation_frame, cmap="gray")
+        #     plt.colorbar()
+        #     plt.show()
+        #     raise(ValueError)
+
+
         observation_frame[observation_frame != 0] = 1  # Set the items (rackets, ball) to 1.
 
         # Debug log 
@@ -706,7 +721,7 @@ class PongDQL():
                         obs_type="grayscale")
         
         # Initializing constants
-        num_states = 80*70 # size of the preprocessed input
+        num_states = 80 * 70 # size of the preprocessed input
         num_actions = 3 # up, down and stay
 
         
@@ -779,7 +794,7 @@ if __name__ == '__main__':
 
     number_of_experiments = 1 # How many NNs we train
     hidden_layer_size = 200 # default: 
-    epoch_number = 10 # default: 1_000 
+    epoch_number = 1 # default: 1_000 
 
     total_start = time.time()
 
@@ -821,12 +836,6 @@ if __name__ == '__main__':
         
         print(" ")
 
-       
-        
-        
-
-    
-    
 
     # Measuring time
     total_end = time.time()
