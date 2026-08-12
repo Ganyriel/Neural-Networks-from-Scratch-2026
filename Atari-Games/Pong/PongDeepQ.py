@@ -438,6 +438,7 @@ class PongDQL():
         # Creating environment
         env = gym.make(#'ALE/Breakout-v5', # Not working for unkown reason
                         'PongNoFrameskip-v4',
+                        # 'Pong-v4',
                         render_mode=render, 
                         obs_type="grayscale")
         
@@ -445,8 +446,8 @@ class PongDQL():
         loss_list = []   
 
         # Initializing constants
-        num_states = 80*70 #np.prod(env.observation_space.shape) 
-        num_actions = 3 #env.action_space.n
+        num_states = 80*70 # size of the preprocessed input
+        num_actions = 3 # up, down and stay
 
         
         # Initializing changing variables
@@ -456,9 +457,7 @@ class PongDQL():
 
         memory = ReplayMemory(self.replay_memory_size)
 
-        # Create policy and target network. Number of nodes in the hidden layer can be adjusted.
-        
-
+        # Create policy and target network
         if(pong_model == True):
             policy_dqn = pong_model_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)
         
@@ -486,9 +485,9 @@ class PongDQL():
 
         # Track number of steps taken. Used for syncing policy => target network.
         step_count=0
-        
-        best_rewards=-1_000
-        terminated_sum = 0
+
+        training_start = False
+        best_rewards = -100
 
         for i in tqdm.tqdm(range(episodes)):
             # For debugging: If we print stuff during epochs, it breaks the progress bar
@@ -512,14 +511,19 @@ class PongDQL():
             while(not terminated and not truncated):
                 # Select action based on epsilon-greedy
                 if random.random() < epsilon:
-                    # select random action
-                    action = env.action_space.sample() 
+                    # select random action from modified action space
+                    action =  random.randint(0, 2) 
                 else:
                     # select best action   
-                    action = policy_dqn.forward(self.state_to_dqn_input(state)).argmax().item()+1
+                    action = policy_dqn.forward(self.state_to_dqn_input(state)).argmax().item()
+                    
 
                 # Execute action
-                new_state,reward,terminated,truncated,_ = env.step(action)
+                new_state,reward,terminated,truncated,_ = env.step(action+1) # We map the actions 0-2 to 1-3
+
+                # Keeping track whether we gained a positive reward
+                if(0 < reward):
+                    training_start = True
 
                 # Debug log
                 # print("Action taken: ", action)
@@ -539,15 +543,6 @@ class PongDQL():
                 # Increment step counter
                 step_count+=1
 
-
-
-            # Keep track of victories
-            if(terminated == True):
-                terminated_sum += 1
-                
-                # Debug/training log
-                # print("reward: ", reward)
-                # print(f"reward at step {i}", rewards_per_episode[i])
             
             # Keep track of highest reward
             if rewards_per_episode[i]>best_rewards:
@@ -555,7 +550,7 @@ class PongDQL():
                 #print(f'Best rewards so far: {best_rewards}')
                 
             # Check if enough experience has been collected (and if at least 1 reward has been collected)
-            if (len(memory) > self.mini_batch_size and np.max(rewards_per_episode) > 0): 
+            if (len(memory) > self.mini_batch_size and training_start == True) : #and np.max(rewards_per_episode) > 0)
                 mini_batch = memory.sample(self.mini_batch_size)
                 loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn, lr))        
 
@@ -576,12 +571,11 @@ class PongDQL():
             pickle.dump(policy_dqn.get_weights(), file)
             
         print("Best reward: ", best_rewards)
-        print("Number of terminations in training: ", terminated_sum)
-
+        
         # Close environment
         env.close()
 
-        """
+        
 
         # Create new graph 
         plt.figure(1)
@@ -617,11 +611,10 @@ class PongDQL():
 
         # Save plots
         plt.savefig('pong_dql.png')
-        """
+        
 
     # Optimize policy network
     def optimize(self, mini_batch, policy_dqn, target_dqn, learning_rate):
-        # print("Optimizing")
         current_q_list = []
         target_q_list = []
         
@@ -649,7 +642,10 @@ class PongDQL():
                 
         # Compute loss for the whole minibatch
         loss = compute_loss_mse(np.concatenate(target_q_list), np.concatenate(current_q_list))
-        
+
+        # Debug log
+        # print("Loss: ", loss)
+
         # Optimize the model 
         gradient = compute_gradient(np.concatenate(target_q_list), np.concatenate(current_q_list))
         
@@ -697,25 +693,21 @@ class PongDQL():
         #     plt.show()
 
         # Return the preprocessed frame as a 1D floating-point array.
-        
         return observation_frame.astype(float).flatten()
 
-        # Flattens the observation array
-        #return state.flatten()
 
     # Run the Pong environment with the learned policy
     def test(self, episodes, render = None, relu = True, two_layers = True, pong_model = True, convolutional = True, adam = True, hidden_layer_size = 16):
-        succesful = 0
-
         # Create Pong instance
         env = gym.make(#'ALE/Breakout-v5', # Not working for unkown reason
                         'PongNoFrameskip-v4',
+                        # 'Pong-v4',
                         render_mode=render, 
                         obs_type="grayscale")
         
         # Initializing constants
-        num_states = 80*70 # np.prod(env.observation_space.shape) # expecting 2: position & velocity
-        num_actions = 3 #env.action_space.n
+        num_states = 80*70 # size of the preprocessed input
+        num_actions = 3 # up, down and stay
 
         
         # Initialize Neural Network
@@ -759,22 +751,17 @@ class PongDQL():
             while(not terminated and not truncated):  
   
                 # Select best action   
-                action = policy_dqn.forward(self.state_to_dqn_input(state)).argmax().item()+1
+                action = policy_dqn.forward(self.state_to_dqn_input(state)).argmax().item()
                 
                 # Debug log
                 # print("Chosen action: ", action)
 
                 # Execute action
-                state,_,terminated,truncated,_ = env.step(action)
+                state,_,terminated,truncated,_ = env.step(action+1) # We map the actions 0-2 to 1-3
   
-            if (terminated == True):
-                succesful += 1
 
         # Closing the environment
         env.close()
-
-        # Returning whether the agent fulfilled their goal
-        return succesful
 
     
 if __name__ == '__main__':
@@ -792,11 +779,11 @@ if __name__ == '__main__':
 
     number_of_experiments = 1 # How many NNs we train
     hidden_layer_size = 200 # default: 
-    epoch_number = 1_000 # default: 1_000 
+    epoch_number = 10 # default: 1_000 
 
     total_start = time.time()
 
-    sum_of_successes = 0
+    
     
     for i in np.arange(number_of_experiments)+1:
         print("Experiment number: ", i)
@@ -822,26 +809,22 @@ if __name__ == '__main__':
         # end = time.time()
         # print("Training took: ", end - start)
 
-        # Testing and keeping track of successes
-        proportion_of_successes = pong.test(test_run_number,
-                                            render = render_testing, 
-                                            relu = relu, 
-                                            two_layers = two_layers, 
-                                            hidden_layer_size= hidden_layer_size,
-                                            adam = adam) 
+        # Testing 
+        pong.test(test_run_number,
+                    render = render_testing, 
+                    relu = relu, 
+                    two_layers = two_layers, 
+                    hidden_layer_size= hidden_layer_size,
+                    adam = adam) 
+
         
-        proportion_of_successes = proportion_of_successes/ test_run_number
-        
-        print("Proportion of termination: ", proportion_of_successes) 
         
         print(" ")
 
-        sum_of_successes += proportion_of_successes
+       
         
         
 
-    
-    print("Total proportion of terminations: ", sum_of_successes/number_of_experiments)
     
     
 
