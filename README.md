@@ -45,6 +45,16 @@ contains a training file for MountainCar Deep Q learning. It has very high succe
 
 ## Atari-Games Folder
 ### Pong Folder
+
+#### layers
+contains implementation of neural network layers (some of them not implemented yet)
+
+#### utils
+contains helper functions
+
+#### networks
+contains functions for creating neural networks
+
 #### PongDeepQ
 contains an incomplete implementation of Deep Q learning for Pong
 
@@ -56,6 +66,16 @@ Issues:
 contains a file from the internet which implements the parallel learning of several agents
 
 #### PongDeepFrameSkip
+contains an incomplete implementation of Deep Q learning for Pong with SkipFrames from https://danieltakeshi.github.io/2016/11/25/frame-skipping-and-preprocessing-for-deep-q-networks-on-atari-2600-games/
+
+It has similar issues as PongDeepQ
+
+#### PongCupy
+contains an implementation of Deep Q learning for Pong using Cupy.
+
+Issues same as PongDeepQ
+
+#### PongDeepFrameSkipCupy
 contains an incomplete implementation of Deep Q learning for Pong with SkipFrames from https://danieltakeshi.github.io/2016/11/25/frame-skipping-and-preprocessing-for-deep-q-networks-on-atari-2600-games/
 
 It has similar issues as PongDeepQ

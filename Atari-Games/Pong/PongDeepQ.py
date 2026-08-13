@@ -1,5 +1,3 @@
-
-
 import gymnasium as gym
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,410 +9,15 @@ import tqdm
 
 import ale_py
 
+from layers import Linear, LinearAdam, Sigmoid, Relu
+from utils import compute_loss_mse, compute_gradient, ReplayMemory
+from networks import create_three_layers_model, create_two_layers_model, create_custom_model
+
+
 gym.register_envs(ale_py)
 
 
 
-# ---------------------------------------------------------
-# Linear layer
-# ---------------------------------------------------------
-class Linear:
-    """ A fully connected layer implemented with NumPy arrays, without any sophistication
-        Uses: 
-            - simple initialization of weights
-            - gradient descent          
-    """
-
-    def __init__(
-        self, in_features: int, out_features: int, batch_size: int
-    ) -> None:
-        super(Linear, self).__init__()
-        self.batch_size = batch_size
-        self.rng = np.random.default_rng(seed=42)
-        self.weight = self.rng.normal(size=(in_features, out_features)) * np.sqrt(1.0 / in_features)
-        self.bias = self.rng.normal(size=(out_features,)) * np.sqrt(1.0 / in_features)
-        self.grad_weight = np.zeros((in_features, out_features))
-        self.grad_bias = np.zeros(out_features)
-        self.input = np.zeros((batch_size, in_features))
-
-    def forward(self, input: np.ndarray) -> np.ndarray:
-        self.input = input
-        output = input @ self.weight + self.bias
-        return output
-
-    def backward(self, grad_output: np.ndarray) -> np.ndarray:
-        
-        # Reshape in case the input is flattened
-        grad_output = grad_output.reshape(-1, np.transpose(self.weight).shape[0])  
-        
-        grad_input = grad_output @ np.transpose(self.weight)
-        self.grad_weight = np.transpose(self.input) @ grad_output
-        self.grad_bias = np.sum(grad_output, axis=0)
-        return grad_input
-
-    def update(self, lr) -> None:
-        self.weight = self.weight - lr * self.grad_weight / self.batch_size
-        self.bias = self.bias - lr * self.grad_bias / self.batch_size
-
-    def get_weights(self):
-        # returns the weights and bias
-        return [self.weight, self.bias]
-
-    def set_weights(self, new_weights):
-        # sets weights and bias of the neural network
-        self.weight = new_weights[0]
-        self.bias = new_weights[1]
-
-
-
-# ---------------------------------------------------------
-# Linear layer with ADAM
-# ---------------------------------------------------------
-class linear_adam:
-    """A fully connected layer implemented with NumPy arrays."""
-
-    def __init__(
-        self, in_features: int, out_features: int, batch_size: int
-    ) -> None:
-        super(linear_adam, self).__init__()
-        self.batch_size = batch_size
-
-        # For comparison: more primitive initialization of weights and bias
-        # self.weight = np.random.normal(size=(in_features, out_features)) * np.sqrt(1.0 / in_features)
-        # self.bias = np.random.normal(size=(out_features,)) * np.sqrt(1.0 / in_features)
-
-        # Initialization of weights like in torch
-        self.k = np.sqrt(1/(in_features)) 
-        self.rng = np.random.default_rng() 
-        self.weight = self.rng.uniform(-self.k,self.k, size=(in_features, out_features))
-        self.bias = self.rng.uniform(-self.k,self.k, size=(out_features,))
-
-        # Initialization for forward and backward pass
-        self.grad_weight = np.zeros((in_features, out_features))
-        self.grad_bias = np.zeros(out_features)
-        self.input = np.zeros((batch_size, in_features))
-
-
-        # Attributes for ADAM
-
-        # Shared for weights and bias
-        self.e = 1e-8
-        self.lr = 0.001 # default: 0.001
-        self.b_1 = 0.9
-        self.b_1_t = self.b_1
-        self.b_2 = 0.999
-        self.b_2_t = self.b_2
-
-        # For weights
-        self.m_w = 0
-        self.v_w = 0
-          
-        # For bias
-        self.m_b = 0
-        self.v_b = 0
-        
-        
-    def forward(self, input: np.ndarray) -> np.ndarray:
-        self.input = input
-        output = input @ self.weight + self.bias
-        return output
-
-    def backward(self, grad_output: np.ndarray) -> np.ndarray:
-        
-        # Reshape in case the input is flattened
-        grad_output = grad_output.reshape(-1, np.transpose(self.weight).shape[0])  
-        
-        grad_input = grad_output @ np.transpose(self.weight)
-        self.grad_weight = np.transpose(self.input) @ grad_output
-        self.grad_bias = np.sum(grad_output, axis=0)
-        return grad_input
-
-    def update(self, learning_rate) -> None:
-        "Implementation of the ADAM optimizer"
-
-        # Weight update
-        self.m_w = self.b_1 * self.m_w +(1-self.b_1) * self.grad_weight / self.batch_size
-        self.v_w = self.b_2 * self.v_w + (1-self.b_2) * (self.grad_weight / self.batch_size)**2  
-        m_hat_w = self.m_w / (1-self.b_1_t) 
-        v_hat_w = self.v_w / (1-self.b_2_t)
-        self.weight  = self.weight - self.lr * m_hat_w / (np.sqrt(v_hat_w) + self.e)                    
-
-        # Bias update
-        self.m_b = self.b_1 * self.m_b +(1-self.b_1) * self.grad_bias / self.batch_size
-        self.v_b = self.b_2 * self.v_b + (1-self.b_2) * (self.grad_bias / self.batch_size)**2  
-        m_hat_b = self.m_b / (1-self.b_1_t) 
-        v_hat_b = self.v_b / (1-self.b_2_t)
-        self.bias = self.bias - self.lr * m_hat_b / (np.sqrt(v_hat_b) + self.e)   
-
-        # Shared parameter update
-        self.b_1_t = self.b_1_t*self.b_1
-        self.b_2_t = self.b_2_t*self.b_2
-
-    def get_weights(self):
-        # returns the weights and bias
-        return [self.weight, self.bias]
-
-    def set_weights(self, new_weights):
-        # sets weights and bias of the neural network
-        self.weight = new_weights[0]
-        self.bias = new_weights[1]
-
-
-# ---------------------------------------------------------
-# Sigmoid activation
-# ---------------------------------------------------------
-class Sigmoid:
-    """Sigmoid activation function"""
-
-    def __init__(self, in_features: int, batch_size: int) -> None:
-        super(Sigmoid, self).__init__()
-        self.input = np.zeros(batch_size)
-        self.output = np.zeros(batch_size)
-
-    def forward(self, input: np.ndarray) -> np.ndarray:
-        self.input = input
-        output = 1 / (1 + np.exp(-self.input))
-        self.output = output
-        return output
-
-    def backward(self, grad_output: np.ndarray) -> np.ndarray:
-        grad_input = grad_output * (self.output * (1 - self.output))
-        return grad_input
-
-
-# ---------------------------------------------------------
-# ReLU activation
-# ---------------------------------------------------------
-class Relu:
-    """ReLU activation function"""
-
-    def __init__(self, in_features: int, batch_size: int) -> None:
-        super(Relu, self).__init__()
-        self.input = np.zeros(batch_size)
-        self.output = np.zeros(batch_size)
-
-    def forward(self, input: np.ndarray) -> np.ndarray:
-        self.input = input
-        output = np.maximum(input,0)
-        self.output = output
-        return output
-
-    def backward(self, grad_output: np.ndarray) -> np.ndarray:
-        # Computes the gradient of ReLU
-        grad_input = grad_output.copy()
-        grad_input[self.input <=0] = 0
-        return grad_input
-    
-
-# ---------------------------------------------------------
-# Neural Networks
-# ---------------------------------------------------------
-
-# Define model
-class three_layers_neural_network:
-    def __init__(self, in_states, h1_nodes, out_actions, batch_size: int, adam: bool, relu: bool):
-        super(three_layers_neural_network, self).__init__()
-
-        self.in_features = in_states
-
-        # Define network layers
-        if(adam == True):
-            
-            self.l1 = linear_adam(in_states, h1_nodes, batch_size)   # Linear layer with adam optimizer
-            self.l2 = linear_adam(h1_nodes, h1_nodes, batch_size)   # Linear layer with adam optimizer
-            self.l3 = linear_adam(h1_nodes, out_actions, batch_size)   # Linear layer with adam optimizer
-        else:
-            self.l1 = Linear(in_states, h1_nodes, batch_size)   # Linear layer with gradient descent
-            self.l2 = Linear(h1_nodes, h1_nodes, batch_size)   # Linear layer with gradient descent
-            self.l2 = Linear(h1_nodes, out_actions, batch_size)   # Linear layer with gradient descent
-
-        # Define activation function
-        if(relu == True):
-            self.a1 = Relu(h1_nodes, batch_size) # Relu activation layer
-            self.a2 = Relu(h1_nodes, batch_size) # Relu activation layer
-        else:
-            self.a1 = Sigmoid(h1_nodes, batch_size) # Sigmoid activation layer
-            self.a2 = Sigmoid(h1_nodes, batch_size) # Sigmoid activation layer
-
-
-    def forward(self, x: np.ndarray) -> np.ndarray:
-        
-        x = np.array(x)
-        x = x.reshape(x.shape[0], -1)  # Flatten the input
-        x = x.T
-        x = self.l1.forward(x)    # Linear layer
-        x = self.a1.forward(x)    # Apply sigmoid activation function
-        x = self.l2.forward(x)    # Linear layer
-        x = self.a2.forward(x)    # Apply sigmoid activation function
-        x = self.l3.forward(x)    # Linear layer
-
-        return x[0]
-    
-    def backward(self, x: np.ndarray) -> None:
-        x = self.l3.backward(x)
-        x = self.a2.backward(x)
-        x = self.l2.backward(x)
-        x = self.a1.backward(x)
-        x = self.l1.backward(x)
-    
-    def update(self,lr) -> None:
-        self.l1.update(lr)
-        self.l2.update(lr)
-        self.l3.update(lr)
-
-    def get_weights(self):
-        # Returns weights of the neurons
-        return [self.l1.get_weights(), self.l2.get_weights(), self.l3.get_weights()]
-
-    def set_weights(self, w):
-        # Sets weights of the neurons
-        self.l1.set_weights(w[0])
-        self.l2.set_weights(w[1])
-        self.l3.set_weights(w[2])
-
-    def print_weights(self):
-        # Prints weights of the neurons
-        print("Three Layer Neural Network")
-        print("First layer: ", self.l1.get_weights()) 
-        print("Second layer: ", self.l2.get_weights()) 
-        print("Third layer: ", self.l3.get_weights())
-
-
-class two_layers_neural_network:
-    def __init__(self, in_states, h1_nodes, out_actions, batch_size: int, adam: bool, relu: bool):
-        super(two_layers_neural_network, self).__init__()
-        self.in_features = in_states
-
-        # Define network layers
-        if(adam == True):
-            
-            self.l1 = linear_adam(in_states, h1_nodes, batch_size)   # Linear layer with adam optimizer
-            self.l2 = linear_adam(h1_nodes, out_actions, batch_size)   # Linear layer with adam optimizer
-        else:
-            self.l1 = Linear(in_states, h1_nodes, batch_size)   # Linear layer with gradient descent
-            self.l2 = Linear(h1_nodes, out_actions, batch_size)   # Linear layer with gradient descent
-
-        # Define activation function
-        if(relu == True):
-            self.a1 = Relu(h1_nodes, batch_size) # Relu activation layer
-        else:
-            self.a1 = Sigmoid(h1_nodes, batch_size) # Sigmoid activation layer
-
-
-    def forward(self, x: np.ndarray) -> np.ndarray:
-        x = x.reshape(x.shape[0], -1)  # Flatten the input
-        x = x.T 
-        x = self.l1.forward(x)    # Linear layer
-        x = self.a1.forward(x)    # Apply ReLU activation function
-        x = self.l2.forward(x)    # Linear layer
-        return x[0]
-    
-    def backward(self, x: np.ndarray) -> None:
-        x = self.l2.backward(x)
-        x = self.a1.backward(x)
-        x = self.l1.backward(x)
-    
-    def update(self,lr) -> None:
-        self.l1.update(lr)
-        self.l2.update(lr)
-
-    def get_weights(self):
-        # Returns weights of the neurons
-        return [self.l1.get_weights(), self.l2.get_weights()]
-
-    def set_weights(self, w):
-        # Sets weights of the neurons
-        self.l1.set_weights(w[0])
-        self.l2.set_weights(w[1])
-
-    def print_weights(self):
-        # Prints weights of the neurons
-        print("Two Layer Neural Network")
-        print("First layer: ", self.l1.get_weights()) 
-        print("Second layer: ", self.l2.get_weights()) 
-
-
-class pong_model_neural_network:
-    def __init__(self, in_states, h1_nodes, out_actions, batch_size: int, adam: bool, relu: bool):
-        super(pong_model_neural_network, self).__init__()
-        self.in_features = in_states
-
-        # Define network layers
-        if(adam == True):
-            
-            self.l1 = linear_adam(in_states, h1_nodes, batch_size)   # Linear layer with adam optimizer
-            self.l2 = linear_adam(h1_nodes, out_actions, batch_size)   # Linear layer with adam optimizer
-        else:
-            self.l1 = Linear(in_states, h1_nodes, batch_size)   # Linear layer with gradient descent
-            self.l2 = Linear(h1_nodes, out_actions, batch_size)   # Linear layer with gradient descent
-
-        # Define activation function
-        self.r1 = Relu(h1_nodes, batch_size) # Relu activation layer
-        #self.s1 = Sigmoid(out_actions, batch_size) # Sigmoid activation layer
-
-
-    def forward(self, x: np.ndarray) -> np.ndarray:
-        x = x.reshape(x.shape[0], -1)  # Flatten the input
-        x = x.T 
-        x = self.l1.forward(x)    # Linear layer
-        x = self.r1.forward(x)    # Apply ReLU activation function
-        x = self.l2.forward(x)    # Linear layer
-        #x = self.s1.forward(x)    # Apply sigmoid activation function
-        return x[0]
-    
-    def backward(self, x: np.ndarray) -> None:
-        #x = self.s1.backward(x)
-        x = self.l2.backward(x)
-        x = self.r1.backward(x)
-        x = self.l1.backward(x)
-        
-    
-    def update(self,lr) -> None:
-        self.l1.update(lr)
-        self.l2.update(lr)
-
-    def get_weights(self):
-        # Returns weights of the neurons
-        return [self.l1.get_weights(), self.l2.get_weights()]
-
-    def set_weights(self, w):
-        # Sets weights of the neurons
-        self.l1.set_weights(w[0])
-        self.l2.set_weights(w[1])
-
-
-
-
-# ---------------------------------------------------------
-# Loss and gradient of loss
-# ---------------------------------------------------------
-
-def compute_loss_mse(target: np.ndarray, prediction: np.ndarray) -> float:
-    """Return MSE"""
-    return np.sum((target -prediction)**2) / prediction.shape[0] 
-
-
-def compute_gradient(target: np.ndarray, prediction: np.ndarray) -> np.ndarray:
-    """
-    Computes the gradient of the mse error.
-    """
-    return 2*(prediction - target) / prediction.shape[0]
-# ---------------------------------------------------------    
-
-
-# Define memory for Experience Replay
-class ReplayMemory():
-    def __init__(self, maxlen):
-        self.memory = deque([], maxlen=maxlen)
-    
-    def append(self, transition):
-        self.memory.append(transition)
-
-    def sample(self, sample_size):
-        return random.sample(self.memory, sample_size)
-
-    def __len__(self):
-        return len(self.memory)
 
 # Pong Deep Q-Learning
 class PongDQL():
@@ -433,7 +36,7 @@ class PongDQL():
 
 
     # Train the Pong environment
-    def train(self, episodes, render = None, relu = True, two_layers = False, pong_model = True, convolutional = True, adam = True, hidden_layer_size = 16):
+    def train(self, episodes, render = None, two_layers = False, custom_model = True, convolutional = True, adam = True, hidden_layer_size = 16):
         
         # Creating environment
         env = gym.make(#'ALE/Breakout-v5', # Not working for unkown reason
@@ -458,19 +61,16 @@ class PongDQL():
         memory = ReplayMemory(self.replay_memory_size)
 
         # Create policy and target network
-        if(pong_model == True):
-            policy_dqn = pong_model_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)
+        if (two_layers == True):
+            policy_dqn = create_two_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
+            target_dqn = create_two_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
+        elif (custom_model == True):
+            policy_dqn = create_custom_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
+            target_dqn = create_custom_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
+        else:   
+            policy_dqn = create_three_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
+            target_dqn = create_three_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
         
-            target_dqn = pong_model_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)        
-        elif(two_layers == True):
-            policy_dqn = two_layers_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)
-
-            target_dqn = two_layers_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)
-        else: 
-            policy_dqn = three_layers_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)
-
-            target_dqn = three_layers_neural_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam, relu = relu)
-
         # Make the target and policy networks the same (copy weights and biases from one network to the other)
         target_dqn.set_weights(policy_dqn.get_weights())
 
@@ -667,6 +267,7 @@ class PongDQL():
    
     
     def state_to_dqn_input(self, state):
+        # Performs preprocessing steps
 
         # Debug log
         # print("Before: ", state.shape)
@@ -685,7 +286,7 @@ class PongDQL():
         
 
 
-        # Remove the background and apply other enhancements.
+        # Remove the background 
         observation_frame[observation_frame == 107] = 0  # Erase the background 
         observation_frame[observation_frame == 87] = 0  # Erase the background 
 
@@ -697,7 +298,7 @@ class PongDQL():
         #     plt.show()
         #     raise(ValueError)
 
-
+        # Normalize the colour
         observation_frame[observation_frame != 0] = 1  # Set the items (rackets, ball) to 1.
 
         # Debug log 
@@ -712,7 +313,7 @@ class PongDQL():
 
 
     # Run the Pong environment with the learned policy
-    def test(self, episodes, render = None, relu = True, two_layers = True, pong_model = True, convolutional = True, adam = True, hidden_layer_size = 16):
+    def test(self, episodes, render = None, two_layers = True, custom_model = True, convolutional = True, adam = True, hidden_layer_size = 16):
         # Create Pong instance
         env = gym.make(#'ALE/Breakout-v5', # Not working for unkown reason
                         'PongNoFrameskip-v4',
@@ -726,28 +327,13 @@ class PongDQL():
 
         
         # Initialize Neural Network
-        if(pong_model == True):
-            policy_dqn = pong_model_neural_network(in_states=num_states, 
-                                                   h1_nodes=hidden_layer_size, 
-                                                   out_actions=num_actions, 
-                                                   batch_size = self.mini_batch_size, 
-                                                   adam = adam, 
-                                                   relu = relu)
-        elif(two_layers == True):
-            policy_dqn = two_layers_neural_network(in_states=num_states, 
-                                     h1_nodes=hidden_layer_size, 
-                                     out_actions=num_actions, 
-                                     batch_size = self.mini_batch_size, 
-                                     adam = adam, 
-                                     relu = relu)
-        else: 
-            policy_dqn = three_layers_neural_network(in_states=num_states, 
-                                     h1_nodes=hidden_layer_size, 
-                                     out_actions=num_actions, 
-                                     batch_size = self.mini_batch_size, 
-                                     adam = adam, 
-                                     relu = relu)   
-
+        if (two_layers == True):
+            policy_dqn = create_two_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
+        elif (custom_model == True):
+            policy_dqn = create_custom_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
+        else:   
+            policy_dqn = create_three_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
+        
         
         # Loading the model
         with open("pong_dql.pkl", 'rb') as file:
@@ -781,20 +367,20 @@ class PongDQL():
     
 if __name__ == '__main__':
     # Initializing
-    test_run_number = 10 # How often we let it show what it learned, default: 1_000
     testing_only = False # Set to 'True' to only load and test newest model
     render_training = None # set to 'human' to see the training on a gaming screen
     render_testing = 'human' # set to 'human' to see the testing on a gaming screen
+    test_run_number = 10 # How often we let it show what it learned
 
-    relu = True # set to true to change the activation function from sigmoid to relu, default: True
-    two_layers = False # set to true to delete the hidden layer, default: True
-    pong_model = True # set to true to use a certain pong model, default: True
-    convolutional = False # TODO NOT IMPLEMENTED! set to true to use the convolutional neural network, default: True 
+    # Choice of model
+    two_layers = True # set to true to use the two layer model, default: True
+    custom_model = False # set to true to use custom model
+    convolutional = False # TODO NOT IMPLEMENTED! set to true to use the convolutional neural network
     adam = True # set to true to use ADAM, default: True
 
     number_of_experiments = 1 # How many NNs we train
     hidden_layer_size = 200 # default: 
-    epoch_number = 1 # default: 1_000 
+    epoch_number = 25 # default: 
 
     total_start = time.time()
 
@@ -814,7 +400,6 @@ if __name__ == '__main__':
             pong.train(
                 epoch_number, 
                 render = render_training, 
-                relu = relu, 
                 two_layers = two_layers, 
                 hidden_layer_size = hidden_layer_size,
                 adam = adam)
@@ -827,7 +412,6 @@ if __name__ == '__main__':
         # Testing 
         pong.test(test_run_number,
                     render = render_testing, 
-                    relu = relu, 
                     two_layers = two_layers, 
                     hidden_layer_size= hidden_layer_size,
                     adam = adam) 

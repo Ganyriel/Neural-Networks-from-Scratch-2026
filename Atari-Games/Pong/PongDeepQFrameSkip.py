@@ -420,9 +420,9 @@ class ReplayMemory():
 class PongDQL():
     # Hyperparameters (adjustable)
     discount_factor_g = 0.9         # discount rate of reward (gamma), default: 0.9  
-    network_sync_rate = 20_000          # number of steps the agent takes before syncing the policy and target network, default: 
+    network_sync_rate = 25_000          # number of steps the agent takes before syncing the policy and target network, default: 
     replay_memory_size = 10_000       # size of replay memory, default:
-    mini_batch_size = 8       # size of the training data set sampled from the replay memory, default: 32
+    mini_batch_size = 32      # size of the training data set sampled from the replay memory, default: 32
 
     # Hyperparameters which are obsolete when using ADAM
     learning_rate_a = 0.1      # learning rate (alpha), default: 
@@ -516,8 +516,8 @@ class PongDQL():
             frames = 1 # keep track of the frame so that we now which to skip
             action = 0 # We do nothing for the first 3 skipped frames
 
-            cumulative_reward = 0
-            old_stacker = [[500]]
+            cumulative_reward = 0 # 
+            old_stacker = [[500]] # Used for initializing the first stacked frames
              
 
 
@@ -526,7 +526,7 @@ class PongDQL():
 
                 if(steps%800 == 0): # TODO add if reward too little
                     truncated = True 
-                    steps = 0
+                    steps = 1
                 
                 if(frames == 4):
                     fused_state = self.fusion(old_state,state)
@@ -571,7 +571,8 @@ class PongDQL():
 
                 
                 if(frames == 4):
-                    if (old_stacker[0][0] != 500) :                    
+                    if (old_stacker[0][0] != 500) :  
+                        cumulative_reward += reward                  
                         # Save experience into memory
                         memory.append((self.unstacker(old_stacker), action, (self.unstacker(stacker)), cumulative_reward, terminated)) 
                     old_stacker = stacker 
@@ -723,14 +724,17 @@ class PongDQL():
         return loss
         
     def fusion(self, old_state, state):
+        # Used to fuse two adjacent frames into one
         fused_state = self.state_to_dqn_input(old_state)+self.state_to_dqn_input(state)
         fused_state[fused_state == 2] = 1
         return fused_state
 
     def unstacker(self,stacker):
+        # Flattens the stacked frames into a 1d input
         return stacker.ravel()
     
     def state_to_dqn_input(self, state):
+        # Performs preprocessing steps
 
         # Debug log
         # print("Before: ", state.shape)
@@ -749,7 +753,7 @@ class PongDQL():
         
 
 
-        # Remove the background and apply other enhancements.
+        # Remove the background 
         observation_frame[observation_frame == 107] = 0  # Erase the background 
         observation_frame[observation_frame == 87] = 0  # Erase the background 
 
@@ -761,7 +765,7 @@ class PongDQL():
         #     plt.show()
         #     raise(ValueError)
 
-
+        # Normalize the colour
         observation_frame[observation_frame != 0] = 1  # Set the items (rackets, ball) to 1.
 
         # Debug log 
