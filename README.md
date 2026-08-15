@@ -55,30 +55,43 @@ contains helper functions
 #### networks
 contains functions for creating neural networks
 
-#### PongDeepQ
-contains an incomplete implementation of Deep Q learning for Pong
+
+
+#### PongTutorial
+contains a file from the internet which implements the parallel learning of several agents. Currently unused
+
+
+#### Folders
+The cupy and numpy folders contain identical files, but ones are implemented in numpy and the others in cupy
+
+#### PongNumpy
+contains an implementation of Deep Q learning for Pong using Numpy. 
 
 Issues:
 - the learning takes too long for good testing
 - it is uncertain whether the training works as intended, since the reset of the environment seems off after losing a point (it resets to the same state)
+- is incompatible with convolutional neural networks ("convolutional" and "custom")
 
-#### PongTutorial
-contains a file from the internet which implements the parallel learning of several agents
+
+
+#### PongCupy
+contains an implementation of Deep Q learning for Pong using Cupy. 
+
+Issues:
+- the learning takes too long for good testing
+- it is uncertain whether the training works as intended, since the reset of the environment seems off after losing a point (it resets to the same state)
+- is incompatible with convolutional neural networks ("convolutional" and "custom")
+
 
 #### PongDeepFrameSkip
 contains an incomplete implementation of Deep Q learning for Pong with SkipFrames from https://danieltakeshi.github.io/2016/11/25/frame-skipping-and-preprocessing-for-deep-q-networks-on-atari-2600-games/
 
-It has similar issues as PongDeepQ
-
-#### PongCupy
-contains an implementation of Deep Q learning for Pong using Cupy.
-
-Issues same as PongDeepQ
+It has similar issues as PongDeepQ, but is compatible with convolutional neural networks
 
 #### PongDeepFrameSkipCupy
 contains an incomplete implementation of Deep Q learning for Pong with SkipFrames from https://danieltakeshi.github.io/2016/11/25/frame-skipping-and-preprocessing-for-deep-q-networks-on-atari-2600-games/
 
-It has similar issues as PongDeepQ
+It has similar issues as PongDeepQ, but is compatible with convolutional neural networks
 
 ### Other-Game Folder
 #### GameDeepQ

@@ -9,9 +9,9 @@ import tqdm
 
 import ale_py
 
-from layers import Linear, LinearAdam, Sigmoid, Relu
+from layers import Linear, LinearAdam, Sigmoid, Relu, Conv
 from utils import compute_loss_mse, compute_gradient, ReplayMemory
-from networks import create_three_layers_model, create_two_layers_model, create_custom_model
+from networks import create_three_layers_model, create_two_layers_model, create_custom_model, create_conv_model
 
 
 gym.register_envs(ale_py)
@@ -55,7 +55,7 @@ class PongDQL():
         lr = self.learning_rate_a
         epsilon = 1 # 1 = 100% random actions
 
-
+        # Initializing Replay Memory
         memory = ReplayMemory(self.replay_memory_size)
 
         # Create policy and target network
@@ -65,9 +65,15 @@ class PongDQL():
         elif (custom_model == True):
             policy_dqn = create_custom_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
             target_dqn = create_custom_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
+        elif (convolutional == True):
+            policy_dqn = create_conv_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
+            target_dqn = create_conv_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
         else:   
             policy_dqn = create_three_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
             target_dqn = create_three_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
+
+        # Print model architecture
+        policy_dqn.print_name()
         
         # Make the target and policy networks the same (copy weights and biases from one network to the other)
         target_dqn.set_weights(policy_dqn.get_weights())
@@ -263,8 +269,8 @@ class PongDQL():
         
         # To save input in Neural Network
         inp = [cp.array(self.state_to_dqn_input(state)) for state, _, _, _, _ in mini_batch]
-        inp = cp.vstack(inp)
-        policy_dqn.forward(inp.T) 
+        inp = cp.stack(inp)
+        policy_dqn.forward(inp) 
 
         policy_dqn.backward(gradient)
         policy_dqn.update(learning_rate)
@@ -338,9 +344,13 @@ class PongDQL():
             policy_dqn = create_two_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
         elif (custom_model == True):
             policy_dqn = create_custom_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
+        elif (convolutional == True):
+            policy_dqn = create_conv_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
         else:   
             policy_dqn = create_three_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-        
+
+        # Print model architecture
+        policy_dqn.print_name()
         
         # Loading the model
         with open("pong_dql.pkl", 'rb') as file:
@@ -392,8 +402,12 @@ if __name__ == '__main__':
 
     # Choice of model
     two_layers = True # set to true to use the two layer model, default: True
+
+    # TODO NOT COMPATIBLE
     custom_model = False # set to true to use custom model
-    convolutional = False # TODO NOT IMPLEMENTED! set to true to use the convolutional neural network
+    convolutional = False # set to true to use the convolutional neural network
+
+
     adam = True # set to true to use ADAM, default: True
 
     number_of_experiments = 1 # How many NNs we train
@@ -419,6 +433,8 @@ if __name__ == '__main__':
                 epoch_number, 
                 render = render_training, 
                 two_layers = two_layers, 
+                convolutional =  convolutional,
+                custom_model = custom_model,
                 hidden_layer_size = hidden_layer_size,
                 adam = adam)
 
@@ -431,6 +447,8 @@ if __name__ == '__main__':
         pong.test(test_run_number,
                     render = render_testing, 
                     two_layers = two_layers, 
+                    convolutional =  convolutional,
+                    custom_model = custom_model,
                     hidden_layer_size= hidden_layer_size,
                     adam = adam) 
 
