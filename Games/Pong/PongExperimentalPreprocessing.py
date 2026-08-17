@@ -9,9 +9,14 @@ import tqdm
 
 import ale_py
 
-from layers_numpy import Linear, LinearAdam, Sigmoid, Relu, Conv
+import sys
+
+# setting path
+sys.path.append('../shared_files')
+
 from utils_numpy import compute_loss_mse, compute_gradient, ReplayMemory
-from networks_numpy import create_three_layers_model, create_two_layers_model, create_custom_model, create_conv_model
+from networks_numpy import create_network
+
 
 
 gym.register_envs(ale_py)
@@ -21,24 +26,18 @@ gym.register_envs(ale_py)
 class PongDQL():
     # Hyperparameters (adjustable)
     discount_factor_g = 0.9         # discount rate of reward (gamma), default: 0.9  
-    network_sync_rate = 1_000          # number of steps the agent takes before syncing the policy and target network, default: 
-    replay_memory_size = 10_000       # size of replay memory, default:
-    mini_batch_size = 32        # size of the training data set sampled from the replay memory, default: 32
-
-    # Hyperparameters which are obsolete when using ADAM
-    learning_rate_a = 0.1      # learning rate (alpha), default: 
-    learning_rate_reductions = 20.0 # what part of the epochs needs to pass until we reduce the learning rate, default: 
-    learning_rate_divisor = 1.2 # the number which divides the learning rate, default: 
-    
-  
+    network_sync_rate = 10_000          # number of steps the agent takes before syncing the policy and target network, default: 
+    replay_memory_size = 20_000       # size of replay memory, default:
+    mini_batch_size = 25        # size of the training data set sampled from the replay memory, default: 32
+    size_of_velocity_memory = 8 # for calculating the velocity and direction of the ball
+    # TODO SAVE ONLY POSITION OF BALL
 
 
     # Train the Pong environment
-    def train(self, episodes, render = None, two_layers = False, custom_model = True, convolutional = True, adam = True, hidden_layer_size = 16):
+    def train(self, episodes, render = None, model_name = "three_layers", hidden_layer_size = 16):
         
         # Creating environment
-        env = gym.make(#'ALE/Breakout-v5', # Not working for unkown reason
-                        'PongNoFrameskip-v4',
+        env = gym.make('PongNoFrameskip-v4',
                         # 'Pong-v4',
                         render_mode=render, 
                         obs_type="grayscale")
@@ -47,31 +46,20 @@ class PongDQL():
         loss_list = []   
 
         # Initializing constants
-        num_states = 80 * 70 # size of the preprocessed input
+        num_states = 6 # size of the preprocessed input
         num_actions = 3 # up, down and stay
 
         
         # Initializing changing variables
-        lr = self.learning_rate_a
         epsilon = 1 # 1 = 100% random actions
 
         # Initializing Replay Memory
         memory = ReplayMemory(self.replay_memory_size)
 
         # Create policy and target network
-        if (two_layers == True):
-            policy_dqn = create_two_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-            target_dqn = create_two_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
-        elif (custom_model == True):
-            policy_dqn = create_custom_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-            target_dqn = create_custom_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
-        elif (convolutional == True):
-            policy_dqn = create_conv_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-            target_dqn = create_conv_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
-        else:   
-            policy_dqn = create_three_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-            target_dqn = create_three_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
-
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name)        
+        target_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name)        
+                
         # Print model architecture
         policy_dqn.print_name()
         
@@ -84,9 +72,6 @@ class PongDQL():
         # List to keep track of epsilon decay
         epsilon_history = []
 
-        # List to keep track of learning rate
-        learning_rate_history = []
-
         # Track number of steps taken. Used for syncing policy => target network.
         step_count=0
 
@@ -98,13 +83,6 @@ class PongDQL():
             # if(i%500 == 0):
             #     print("Epoch: ", i)
             
-            # For comparison: a primitive learning rate scheduler
-            if(adam == False):
-                if(i % (episodes/self.learning_rate_reductions) == 0):  # possible augmentation: 1. constant learning rate at first and 2. learning rate reset
-                    lr = lr/self.learning_rate_divisor 
-
-                # For plotting the learning rate
-                learning_rate_history.append(lr)
 
             state = env.reset()[0]  # Initialize to state 0
             terminated = False      # True when agent reaches goal
@@ -113,24 +91,75 @@ class PongDQL():
             # Track number of steps taken. Used for terminating early
             steps = 1 
 
+            # Saving previous states for calculation of velocity and direction of the ball
+            previous_state = [state for k in range(self.size_of_velocity_memory)]
 
-            # Agent navigates map until it reaches goal (terminated), or has taken 200 actions (truncated).
+
+            for j in range(self.size_of_velocity_memory):
+                # Until previous state memory is full, we stand still
+                action =  0
+
+                # Execute action
+                new_state,reward,_,_,_ = env.step(action+1) # We map the actions 0-2 to 1-3
+
+                # Keep track of the rewards collected per episode.
+                rewards_per_episode[i] += reward
+
+                # Fill previous state memory
+                previous_state[j] = state
+
+                # Move to the next state
+                state = new_state
+
+            # while (len(cp.nonzero(state[35:195] == 236)[0]) == 0):
+            #     # Until the ball appears, we stand still
+            #     action =  0
+
+            #     # Execute action
+            #     new_state,reward,_,_,_ = env.step(action+1) # We map the actions 0-2 to 1-3
+
+            #     # Keep track of the rewards collected per episode.
+            #     rewards_per_episode[i] += reward
+
+            #     # Update previous state memory
+            #     previous_state[1:] = previous_state[0:self.size_of_velocity_memory-1] 
+            #     previous_state[0] = state
+
+            #     # Move to the next state
+            #     state = new_state
+
+
+                
+            preprocessed_new_state = self.state_to_dqn_input(new_state, previous_state[-1])
+
+            # Agent plays until the game ends or they have taken 2_000 actions (truncated).
             while(not terminated and not truncated):
+
+                preprocessed_state = preprocessed_new_state
+
                 # Select action based on epsilon-greedy
                 if random.random() < epsilon:
                     # select random action from modified action space
                     action =  random.randint(0, 2) 
                 else:
                     # select best action   
-                    action = policy_dqn.forward(self.state_to_dqn_input(state)).argmax().item()
+                    action = policy_dqn.forward(preprocessed_state).argmax().item()
                     
 
                 # Execute action
                 new_state,reward,terminated,truncated,_ = env.step(action+1) # We map the actions 0-2 to 1-3
 
+
+                # Debug log
+                # if reward != 0:
+                #     print("reward: ", reward)
+
+                # Preprocessing new state
+                preprocessed_new_state = self.state_to_dqn_input(new_state, previous_state[0])
+
                 # Keeping track whether we gained a positive reward
-                if(0 < reward):
-                    training_start = True
+                # if(0 < reward):
+                training_start = True
 
                 # Debug log
                 # print("Action taken: ", action)
@@ -142,7 +171,11 @@ class PongDQL():
                 # print(rewards_per_episode[i])
                 
                 # Save experience into memory
-                memory.append((state, action, new_state, reward, terminated)) 
+                memory.append((preprocessed_state, action, preprocessed_new_state, reward, terminated)) 
+
+                # Update previous state memory
+                previous_state[1:] = previous_state[0:self.size_of_velocity_memory-1] 
+                previous_state[0] = state
 
                 # Move to the next state
                 state = new_state
@@ -165,7 +198,7 @@ class PongDQL():
             # Check if enough experience has been collected (and if at least 1 reward has been collected)
             if (len(memory) > self.mini_batch_size and training_start == True) :
                 mini_batch = memory.sample(self.mini_batch_size)
-                loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn, lr))        
+                loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn))        
 
                 # Decay epsilon
                 epsilon = max(epsilon - 1/episodes, 0.00) # possible augmentation: set a minimum epsilon (i.e. change to 0.1)
@@ -178,7 +211,7 @@ class PongDQL():
 
                     step_count=0
 
-
+            # print("Rewards in this episode: ", rewards_per_episode[i])
         # Saving the model
         with open("pong_dql.pkl", 'wb') as file:
             pickle.dump(policy_dqn.get_weights(), file)
@@ -217,12 +250,6 @@ class PongDQL():
         plt.plot(loss_list)
         plt.title("Loss per episode")
 
-
-        # Plot the learning rate if not using adam
-        if(adam == False):
-            plt.subplot(224)
-            plt.plot(learning_rate_history)
-            plt.title("Learning rate in each episode")
         
         # Save plots
         plt.savefig('pong_dql.png')
@@ -230,22 +257,20 @@ class PongDQL():
         
 
     # Optimize policy network
-    def optimize(self, mini_batch, policy_dqn, target_dqn, learning_rate):
+    def optimize(self, mini_batch, policy_dqn, target_dqn):
         current_q_list = []
         target_q_list = []
         
-        for state, action, new_state, reward, terminated in mini_batch:
+        for preprocessed_state, action, preprocessed_new_state, reward, terminated in mini_batch:
 
-            if terminated: 
+            if reward != 0: #terminated: 
                 # When in a terminated state, target q value should be set to the reward.
                 target = reward
                 
             else:
                 # Calculate target q value 
-                target = reward + self.discount_factor_g * target_dqn.forward(self.state_to_dqn_input(new_state)).max()
+                target = reward + self.discount_factor_g * target_dqn.forward(preprocessed_new_state).max()
 
-            # Preprocess state
-            preprocessed_state = self.state_to_dqn_input(state)
 
             # Get the current set of Q values
             current_q = policy_dqn.forward(preprocessed_state)
@@ -268,86 +293,135 @@ class PongDQL():
         gradient = compute_gradient(cp.concatenate(target_q_list), cp.concatenate(current_q_list))
         
         # To save input in Neural Network
-        inp = [cp.array(self.state_to_dqn_input(state)) for state, _, _, _, _ in mini_batch]
+        inp = [preprocessed_state for preprocessed_state, _, _, _, _ in mini_batch]
         inp = cp.stack(inp)
         policy_dqn.forward(inp) 
 
         policy_dqn.backward(gradient)
-        policy_dqn.update(learning_rate)
+        policy_dqn.update()
 
         return loss
         
-   
+    def get_positions(self, state):
+        # Crop the frame
+        observation_frame = state[34:193]
+
+        # Paddle position
+        paddle_pixels = cp.nonzero(observation_frame == 147)
+        num_paddle = len(paddle_pixels[0])
+
+        # When starting the environment, the colours a bit different
+        if num_paddle == 0:
+            paddle_pixels = cp.nonzero(observation_frame == 121)
+            num_paddle = len(paddle_pixels[0])
+        
+        
+
+        if num_paddle == 0:
+            
+            plt.imshow(observation_frame, cmap="gray")
+            plt.colorbar()
+            plt.show()
+
+            plt.imshow(state, cmap="gray")
+            plt.colorbar()
+            plt.show()
+
+
+        paddle_middle = int(cp.floor(num_paddle/2))
+        paddle_pos = (paddle_pixels[0][paddle_middle])
+        
+        # Ball position
+        ball_pixels = cp.nonzero(observation_frame == 236)
+        num_ball = len(ball_pixels[0])
+        #print(num_ball)
+        if(num_ball == 0):
+            ball_pos = (200,200)
+        else:
+            ball_middle = int(cp.floor(num_ball/2))
+            ball_pos = (ball_pixels[0][ball_middle],ball_pixels[0][ball_middle])
+
+        return (paddle_pos, ball_pos)
+
     
-    def state_to_dqn_input(self, state):
+    def state_to_dqn_input(self, state, prev_state):
         # Performs preprocessing steps
 
         # Debug log
         # print("Before: ", state.shape)
 
-        # Crop the frame.
-        observation_frame = state[35:195,10:150]
+             
+        # Positions of paddle and ball
+        paddle_pos, ball_pos = self.get_positions(state)
+        _, prev_ball_pos = self.get_positions(prev_state)
 
-        # Debug log
-        # print("After 1st step: ", observation_frame.shape)
+        if(ball_pos == (200,200) or prev_ball_pos == (200,200)):
+            ball_absolute_velocity = 0
+            ball_direction = cp.array([0,0])
+        else:
+            ball_directed_velocity = cp.array(ball_pos)-cp.array(prev_ball_pos)
+            ball_absolute_velocity = cp.linalg.norm(ball_directed_velocity)
+            if (ball_absolute_velocity == 0):
+                ball_direction = cp.array([0,0])
+            else:
+                ball_direction = ball_directed_velocity/ball_absolute_velocity
 
-        # Downsample the frame by a factor of 2.
-        observation_frame = observation_frame[::2, ::2]
+                # rounding
+                # ball_direction = cp.floor(ball_direction*10)/10
 
-        # Debug log
-        # print("After 2nd step: ", observation_frame.shape)
+        # No ball
+        # if (ball_direction[0] != 0 or ball_direction[1] != 0):
+        #     print(ball_direction)
+        # else:
+        #     if (random.random()<0.01):
+        #         plt.imshow(state[34:193], cmap="gray")
+        #         plt.colorbar()
+        #         plt.show()
+
+        #         plt.imshow(state, cmap="gray")
+        #         plt.colorbar()
+        #         plt.show()
+
+                
+
+        return paddle_pos, ball_pos[0], ball_pos[1], ball_absolute_velocity, ball_direction[0], ball_direction[1]
+
+
+
+        
+        
+
+        # # Debug log 
+        # if (random.random()<1):      
+        #     print("Light values: ", cp.unique(observation_frame))
+        #     # print(observation_frame[observation_frame == 147].shape)
+        #     # print(len(cp.where(observation_frame == 147)))
+        #     # print(cp.where(observation_frame == 147)[0].shape)
+        #     # print(cp.where(observation_frame == 147)[1].shape)
+        #     # print(cp.where(observation_frame == 147))
+        
+        #     plt.imshow(observation_frame, cmap="gray")
+        #     plt.colorbar()
+        #     plt.show()
+        #     print()
+
         
 
 
-        # Remove the background 
-        observation_frame[observation_frame == 107] = 0  # Erase the background 
-        observation_frame[observation_frame == 87] = 0  # Erase the background 
-
-        # For catching errors in the preprocessing feature
-        # if(cp.unique(observation_frame).shape[0] >4):
-        #     print("Light values: ", cp.unique(observation_frame))
-        #     plt.imshow(observation_frame, cmap="gray")
-        #     plt.colorbar()
-        #     plt.show()
-        #     raise(ValueError)
-
-        # Normalize the colour
-        observation_frame[observation_frame != 0] = 1  # Set the items (rackets, ball) to 1.
-
-        # Debug log 
-        # if (random.random()<0.025):      
-        #     # print("Light values: ", cp.unique(observation_frame))
-        #     plt.imshow(observation_frame, cmap="gray")
-        #     plt.colorbar()
-        #     plt.show()
-
-        # Return the preprocessed frame as a 1D floating-point array.
-        return observation_frame.astype(float).flatten()
-
-
     # Run the Pong environment with the learned policy
-    def test(self, episodes, render = None, two_layers = True, custom_model = True, convolutional = True, adam = True, hidden_layer_size = 16):
+    def test(self, episodes, render = None, model_name = "three_layers", hidden_layer_size = 16):
         # Create Pong instance
-        env = gym.make(#'ALE/Breakout-v5', # Not working for unkown reason
-                        'PongNoFrameskip-v4',
-                        # 'Pong-v4',
+        env = gym.make('PongNoFrameskip-v4',
                         render_mode=render, 
                         obs_type="grayscale")
         
         # Initializing constants
-        num_states = 80 * 70 # size of the preprocessed input
+        num_states = 6 # size of the preprocessed input
         num_actions = 3 # up, down and stay
 
         
         # Initialize Neural Network
-        if (two_layers == True):
-            policy_dqn = create_two_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-        elif (custom_model == True):
-            policy_dqn = create_custom_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-        elif (convolutional == True):
-            policy_dqn = create_conv_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-        else:   
-            policy_dqn = create_three_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name)        
 
         # Print model architecture
         policy_dqn.print_name()
@@ -366,14 +440,49 @@ class PongDQL():
 
             # Track number of steps taken. Used for terminating early
             steps = 1 
-            
 
+            previous_state = [state for _ in range(self.size_of_velocity_memory)]
+            
+            for j in range(4):
+                # Until previous state memory is full, we stand still
+                action =  0
+            
+                # Execute action
+                new_state,_,_,_,_ = env.step(action+1) # We map the actions 0-2 to 1-3
+            
+                # Fill previous state memory
+                previous_state[j] = state
+            
+                # Move to the next state
+                state = new_state
+            
+            while (len(cp.nonzero(state[35:195] == 236)[0]) == 0):
+                # Until the ball appears, we stand still
+                action =  0
+            
+                # Execute action
+                new_state,_,_,_,_ = env.step(action+1) # We map the actions 0-2 to 1-3
+            
+                # Update previous state memory
+                previous_state[1:] = previous_state[0:self.size_of_velocity_memory-1] 
+                previous_state[0] = state
+            
+                # Move to the next state
+                state = new_state
+                print("No ball")
+            
 
             # Agent navigates map until it falls into a hole (terminated), reaches goal (terminated), or has taken 200 actions (truncated).
             while(not terminated and not truncated):  
-  
+
+                # Preprocess state
+                preprocessed_frame = self.state_to_dqn_input(state,previous_state[-1])
+
+                # Debug log
+                # print("State: ", preprocessed_frame)
+
                 # Select best action   
-                action = policy_dqn.forward(self.state_to_dqn_input(state)).argmax().item()
+                action = policy_dqn.forward(preprocessed_frame).argmax().item()
                 
                 # Debug log
                 # print("Chosen action: ", action)
@@ -384,6 +493,10 @@ class PongDQL():
                 if(steps == 1_200):
                     truncated = True 
                     steps = 1
+
+                # Update previous state memory
+                previous_state[1:] = previous_state[0:self.size_of_velocity_memory-1] 
+                previous_state[0] = state
                 
                 # Increment step counter
                 steps += 1
@@ -401,14 +514,9 @@ if __name__ == '__main__':
     test_run_number = 10 # How often we let it show what it learned
 
     # Choice of model
-    two_layers = True # set to true to use the two layer model, default: True
+    models = ["two_layers", "three_layers"] 
+    model_name = models[0]
 
-    # TODO NOT COMPATIBLE
-    custom_model = False # set to true to use custom model
-    convolutional = False # set to true to use the convolutional neural network
-
-
-    adam = True # set to true to use ADAM, default: True
 
     number_of_experiments = 1 # How many NNs we train
     hidden_layer_size = 200 # default: 
@@ -432,11 +540,8 @@ if __name__ == '__main__':
             pong.train(
                 epoch_number, 
                 render = render_training, 
-                two_layers = two_layers, 
-                convolutional =  convolutional,
-                custom_model = custom_model,
-                hidden_layer_size = hidden_layer_size,
-                adam = adam)
+                model_name = model_name,
+                hidden_layer_size = hidden_layer_size)
 
         # Performance logging:
         # # Measuring time
@@ -446,11 +551,8 @@ if __name__ == '__main__':
         # Testing 
         pong.test(test_run_number,
                     render = render_testing, 
-                    two_layers = two_layers, 
-                    convolutional =  convolutional,
-                    custom_model = custom_model,
-                    hidden_layer_size= hidden_layer_size,
-                    adam = adam) 
+                    model_name = model_name,
+                    hidden_layer_size= hidden_layer_size) 
 
         
         

@@ -1,9 +1,19 @@
 # Neural-Networks-from-Scratch-2026
 Advanced Practical called "Neural Networks from Scratch"
 
+## Games Folder
+
+### Shared_files Folder
+#### layers_numpy
+contains implementation of neural network layers
+
+#### utils_numpy
+contains helper functions as well as optimizers and weight initializations
+
+#### networks_numpy
+contains functions for creating neural networks
 
 
-## Easier-Games Folder
 ### FrozenLake Folder
 #### FrozenLakeDeepQ
 contains a Neural Network which is supposed to learn to play Frozen Lake using Deep Q Learning. 
@@ -19,16 +29,11 @@ Temporary stuff:
 Remark:
 - agent solves the puzzle almost always (19.06 with 99.96% chance, tested over 300 experiments)
 
-#### FrozenLakeNeuralCupy
-contains old implementation of a DeepQ approach to train a Neural Network to solve FrozenLake in CuPy.
-
-Issue: Cupy is significantly slower than numpy. Probably due to copying (gpu mostly copies)
-
 
 
 ### BlackJack Folder 
 #### BlackJackDeepQ
-contains an unclean implementation of deep Q learning for Blackjack. The agent's success rate is 40-42%. Requires some cleanup and hyperparameter tuning
+contains an implementation of deep Q learning for Blackjack. The agent's success rate is 40-42%. Requires some cleanup and hyperparameter tuning
 
 #### BlackJackQLearning
 contains an hands-on approach to Q-Learning and simpler implementation of RL.
@@ -39,27 +44,11 @@ This file was created using the Tutorial on the [Gymnasium Library Documentation
 
 ### MountainCar Folder 
 #### MountainCarDeepQ
-contains a training file for MountainCar Deep Q learning. It has very high success rate.
+contains a training file for MountainCar Deep Q learning. It has very high success rate. 
+Todo: weight initialization and optimizers
 
 
-
-## Atari-Games Folder
 ### Pong Folder
-
-#### layers
-contains implementation of neural network layers (some of them not implemented yet)
-
-#### utils
-contains helper functions
-
-#### networks
-contains functions for creating neural networks
-
-
-
-#### PongTutorial
-contains a file from the internet which implements the parallel learning of several agents. Currently unused
-
 
 #### Folders
 The cupy and numpy folders contain identical files, but ones are implemented in numpy and the others in cupy
@@ -71,32 +60,18 @@ Issues:
 - the learning takes too long for good testing
 - it is uncertain whether the training works as intended, since the reset of the environment seems off after losing a point (it resets to the same state)
 - is incompatible with convolutional neural networks ("convolutional" and "custom")
+- Todo: weight initialization and optimizers
 
 
 
-#### PongCupy
-contains an implementation of Deep Q learning for Pong using Cupy. 
-
-Issues:
-- the learning takes too long for good testing
-- it is uncertain whether the training works as intended, since the reset of the environment seems off after losing a point (it resets to the same state)
-- is incompatible with convolutional neural networks ("convolutional" and "custom")
-
-
-#### PongDeepFrameSkip
+#### PongDeepFrameSkipNumpy
 contains an incomplete implementation of Deep Q learning for Pong with SkipFrames from https://danieltakeshi.github.io/2016/11/25/frame-skipping-and-preprocessing-for-deep-q-networks-on-atari-2600-games/
 
-It has similar issues as PongDeepQ, but is compatible with convolutional neural networks
+It has similar issues as PongDeepQNumpy, but is compatible with convolutional neural networks
 
-#### PongDeepFrameSkipCupy
-contains an incomplete implementation of Deep Q learning for Pong with SkipFrames from https://danieltakeshi.github.io/2016/11/25/frame-skipping-and-preprocessing-for-deep-q-networks-on-atari-2600-games/
-
-It has similar issues as PongDeepQ, but is compatible with convolutional neural networks
-
-### Other-Game Folder
-#### GameDeepQ
-is an experimental file for training a Neural Network on an Atari Game
-
+#### PongExperimentalPreprocessing
+contains an almost finished implementation of Deep Q learning for Pong. It uses very strong preprocessing.
+It requires hyperparameter tuning.
 
 
 ## Durak Folder

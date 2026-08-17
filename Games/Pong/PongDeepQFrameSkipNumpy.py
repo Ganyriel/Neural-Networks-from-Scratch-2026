@@ -9,9 +9,13 @@ import time
 import tqdm
 import ale_py
 
-from layers_numpy import Linear, LinearAdam, Sigmoid, Relu
+import sys
+
+# setting path
+sys.path.append('../shared_files')
+
 from utils_numpy import compute_loss_mse, compute_gradient, ReplayMemory
-from networks_numpy import create_three_layers_model, create_two_layers_model, create_custom_model, create_conv_model
+from networks_numpy import create_network
 
 
 gym.register_envs(ale_py)
@@ -26,17 +30,8 @@ class PongDQL():
     replay_memory_size = 10_000       # size of replay memory, default:
     mini_batch_size = 25       # size of the training data set sampled from the replay memory, default: 32
 
-
-    # Hyperparameters which are obsolete when using ADAM
-    learning_rate_a = 0.1      # learning rate (alpha), default: 
-    learning_rate_reductions = 20.0 # what part of the epochs needs to pass until we reduce the learning rate, default: 
-    learning_rate_divisor = 1.2 # the number which divides the learning rate, default: 
-    
-  
-
-
     # Train the Pong environment
-    def train(self, episodes, render = None, two_layers = False, custom_model = True, convolutional = True, adam = True, hidden_layer_size = 16):
+    def train(self, episodes, render = None, model_name = "three_layers", hidden_layer_size = 16):
         
         # Creating environment
         env = gym.make(#'ALE/Breakout-v5', # Not working for unkown reason
@@ -54,25 +49,16 @@ class PongDQL():
 
         
         # Initializing changing variables
-        lr = self.learning_rate_a
         epsilon = 1 # 1 = 100% random actions
 
         # Create replay memory
         memory = ReplayMemory(self.replay_memory_size)
 
-        if (two_layers == True):
-            policy_dqn = create_two_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-            target_dqn = create_two_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
-        elif (custom_model == True):
-            policy_dqn = create_custom_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-            target_dqn = create_custom_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
-        elif (convolutional == True):
-            policy_dqn = create_conv_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-            target_dqn = create_conv_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
-        else:   
-            policy_dqn = create_three_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-            target_dqn = create_three_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)
-                     
+        # Initializing policy and target network
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name)        
+        target_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name)        
+        
+                   
         # Print model architecture
         policy_dqn.print_name()
         
@@ -85,31 +71,16 @@ class PongDQL():
         # List to keep track of epsilon decay
         epsilon_history = []
 
-        # List to keep track of learning rate
-        learning_rate_history = []
-
         # Track number of steps taken. Used for syncing policy => target network.
         step_count=0
-
-        
 
         training_start = False
         best_rewards = -100
 
         for i in tqdm.tqdm(range(episodes)):
-           
-
-            # For debugging: If we print stuff during epochs, it breaks the progress bar
+            # For debugging: If we print things during epochs, it breaks the progress bar
             # if(i%500 == 0):
             #     print("Epoch: ", i)
-            
-            # For comparison: a primitive learning rate scheduler
-            if(adam == False):
-                if(i % (episodes/self.learning_rate_reductions) == 0):  # possible augmentation: 1. constant learning rate at first and 2. learning rate reset
-                    lr = lr/self.learning_rate_divisor 
-
-                # For plotting the learning rate
-                learning_rate_history.append(lr)
 
             state = env.reset()[0]  # Initialize to state 0
             terminated = False      # True when agent reaches goal
@@ -155,15 +126,14 @@ class PongDQL():
                         action = policy_dqn.forward(stacker).argmax().item()
                         
 
-                    
-                
                 # Execute action
                 new_state,reward,terminated,truncated,_ = env.step(action+1) # We map the actions 0-2 to 1-3
 
 
-                # Keeping track whether we gained a positive reward
+                # Keeping track whether we gained a positive reward to start training
                 if(0 < reward):
                     training_start = True
+                    
 
                 # Debug log
                 # print("Action taken: ", action)
@@ -186,7 +156,7 @@ class PongDQL():
                         # Save experience into memory
                         # self.unstacker(old_stacker)
                         # self.unstacker(stacker)
-                        memory.append((old_stacker, action, stacker, cumulative_reward, terminated)) 
+                        memory.append((old_stacker, action, stacker[0], cumulative_reward, terminated)) 
                     old_stacker = stacker 
 
                        
@@ -203,13 +173,20 @@ class PongDQL():
                     frames += 1
                     cumulative_reward += reward
 
+                if(terminated == True):
+                    tup1,tup2,tup3,tup4,tup5 = memory.pop()
+                    tup5 = True
+                    memory.append((tup1, tup2, tup3, tup4, tup5))
+
+                # Truncation
+                # if(steps == 2_000): # TODO add if reward too little
+                #     truncated = True 
+                #     steps = 0
+
 
                 # Move to the next state
                 state = new_state
 
-                if(steps == 2_000): # TODO add if reward too little
-                    truncated = True 
-                    steps = 0
 
                 # Increment step counter
                 step_count+=1
@@ -230,7 +207,7 @@ class PongDQL():
                 mini_batch = memory.sample(self.mini_batch_size)
                 
                 # print("mini_batch.shape: ", mini_batch[0][0].shape)
-                loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn, lr))        
+                loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn))        
 
                 # Decay epsilon
                 epsilon = max(epsilon - 1/episodes, 0.00) # possible augmentation: set a minimum epsilon (i.e. change to 0.1)
@@ -282,18 +259,13 @@ class PongDQL():
         plt.plot(loss_list)
         plt.title("Loss per episode")
 
-        # Plot the learning rate
-        plt.subplot(224)
-        plt.plot(learning_rate_history)
-        plt.title("Learning rate in each episode")
-
         # Save plots
         plt.savefig('pong_dql.png')
         
         
 
     # Optimize policy network
-    def optimize(self, mini_batch, policy_dqn, target_dqn, learning_rate):
+    def optimize(self, mini_batch, policy_dqn, target_dqn):
 
         # Debug log
         # print("Optimizing")
@@ -301,7 +273,13 @@ class PongDQL():
         current_q_list = []
         target_q_list = []
         
-        for state, action, new_state, reward, terminated in mini_batch:
+        for state, action, single_new_state, reward, terminated in mini_batch:
+
+            # Reconstruct stacked images for the new state
+            new_state = state.copy()
+            new_state[0] = single_new_state
+            new_state[1:4] = state[0:3]
+
             if terminated: 
                 # When in a terminated state, target q value should be set to the reward.
                 target = reward
@@ -331,12 +309,13 @@ class PongDQL():
         gradient = compute_gradient(cp.concatenate(target_q_list), cp.concatenate(current_q_list))
         
         # To save input in Neural Network
-        inp = [cp.array(state) for state, _, _, _, _ in mini_batch]
+
+        inp = [cp.array(state) for state, _, _, _, _ in mini_batch]        
         inp = cp.stack(inp)
 
         policy_dqn.forward(inp) 
         policy_dqn.backward(gradient)
-        policy_dqn.update(learning_rate)
+        policy_dqn.update()
 
         return loss
         
@@ -396,7 +375,7 @@ class PongDQL():
 
 
     # Run the Pong environment with the learned policy
-    def test(self, episodes, render = None, two_layers = True, custom_model = True, convolutional = True, adam = True, hidden_layer_size = 16):
+    def test(self, episodes, render = None, model_name = "three_layers", hidden_layer_size = 16):
         print("")
         print("Starting Testing")
         print("")
@@ -412,15 +391,9 @@ class PongDQL():
         num_states = 80 * 80 * 4 # size of the preprocessed input
         num_actions = 3 # up, down and stay
 
+
         # Initialize Neural Network
-        if (two_layers == True):
-            policy_dqn = create_two_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-        elif (custom_model == True):
-            policy_dqn = create_custom_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-        elif (convolutional == True):
-            policy_dqn = create_conv_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
-        else:   
-            policy_dqn = create_three_layers_model(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, adam = adam)        
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name)        
 
         # Print model architecture
         policy_dqn.print_name()
@@ -488,14 +461,12 @@ if __name__ == '__main__':
     render_testing = 'human' # set to 'human' to see the testing on a gaming screen
     test_run_number = 10 # How often we let it show what it learned
 
-    two_layers = False # set to true to use the two layer model, default: True
-    custom_model = True # set to true to use custom model
-    convolutional = False # set to true to use the convolutional neural network
-    adam = True # set to true to use ADAM, default: True
+    models = ["two_layers", "three_layers", "custom_model_pong", "convolutional_pong"]
+    model_name = models[2]
 
     number_of_experiments = 1 # How many NNs we train
-    hidden_layer_size = 50 # default: 
-    epoch_number = 1_000 # default: 1_000?
+    hidden_layer_size = 200 # default: 
+    epoch_number = 10 # default: 1_000?
 
     total_start = time.time()
 
@@ -513,13 +484,11 @@ if __name__ == '__main__':
         # Training 
         if(testing_only == False):
             pong.train(
-                epoch_number, 
+                episodes = epoch_number, 
                 render = render_training, 
-                two_layers = two_layers, 
-                convolutional =  convolutional,
-                custom_model = custom_model,
+                model_name = model_name,
                 hidden_layer_size = hidden_layer_size,
-                adam = adam)
+                )
 
         # Performance logging:
         # Measuring time
@@ -527,13 +496,11 @@ if __name__ == '__main__':
         # print("Training took: ", end - start)
 
         # Testing 
-        pong.test(test_run_number,
+        pong.test(episodes = test_run_number,
                     render = render_testing, 
-                    two_layers = two_layers, 
-                    convolutional =  convolutional,
-                    custom_model = custom_model,
+                    model_name = model_name,
                     hidden_layer_size= hidden_layer_size,
-                    adam = adam) 
+                    ) 
 
 
 
