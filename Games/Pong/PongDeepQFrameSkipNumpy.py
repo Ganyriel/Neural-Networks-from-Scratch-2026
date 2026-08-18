@@ -131,8 +131,8 @@ class PongDQL():
 
 
                 # Keeping track whether we gained a positive reward to start training
-                if(0 < reward):
-                    training_start = True
+                # if(0 < reward):
+                #     training_start = True
                     
 
                 # Debug log
@@ -202,16 +202,21 @@ class PongDQL():
                 # Debug log
                 #print(f'Best rewards so far: {best_rewards}')
                 
-            # Check if enough experience has been collected (and if at least 1 reward has been collected)
-            if (len(memory) > self.mini_batch_size and training_start == True) :
+            # Check if enough experience has been collected. 
+            # Here we remove checking for '0 < reward', because pong training works with rewards ranging from -20 to +5 or 10 in the beginning.
+            if (len(memory) > self.mini_batch_size) :
                 mini_batch = memory.sample(self.mini_batch_size)
                 
                 # print("mini_batch.shape: ", mini_batch[0][0].shape)
                 loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn))        
 
                 # Decay epsilon
-                epsilon = max(epsilon - 1/episodes, 0.00) # possible augmentation: set a minimum epsilon (i.e. change to 0.1)
-
+                # epsilon = max(epsilon - 1/episodes, 0.00) # possible augmentation: set a minimum epsilon (i.e. change to 0.1)
+                # We added an exponential epsilon decay here. Maybe that'll help.
+                epsilon_decay_rate = 0.995
+                epsilon = max(epsilon * epsilon_decay_rate, 0.01)
+                
+                
                 epsilon_history.append(epsilon)
 
                 # Copy policy network to target network after a certain number of steps
@@ -370,7 +375,9 @@ class PongDQL():
 
         # Return the preprocessed frame as a 1D floating-point array.
         # observation_frame = observation_frame.astype(float).flatten()
-
+        
+        
+        
         return observation_frame
 
 
@@ -456,17 +463,21 @@ class PongDQL():
     
 if __name__ == '__main__':
     # Initializing
-    testing_only = False # Set to 'True' to only load and test newest model
+    doTest = False # Set to 'True' to load and test newest model
+    doTrain = True # Set to 'True' to train a new model
+    
     render_training = None # set to 'human' to see the training on a gaming screen
-    render_testing = 'human' # set to 'human' to see the testing on a gaming screen
+    render_testing = None # set to 'human' to see the testing on a gaming screen
+    
     test_run_number = 10 # How often we let it show what it learned
+
 
     models = ["two_layers", "three_layers", "custom_model_pong", "convolutional_pong"]
     model_name = models[2]
 
     number_of_experiments = 1 # How many NNs we train
     hidden_layer_size = 200 # default: 
-    epoch_number = 10 # default: 1_000?
+    epoch_number = 150 # default: 1_000?
 
     total_start = time.time()
 
@@ -482,13 +493,21 @@ if __name__ == '__main__':
         pong = PongDQL()
         
         # Training 
-        if(testing_only == False):
+        if(doTrain == True):
             pong.train(
-                episodes = epoch_number, 
-                render = render_training, 
-                model_name = model_name,
-                hidden_layer_size = hidden_layer_size,
-                )
+                    episodes = epoch_number, 
+                    render = render_training, 
+                    model_name = model_name,
+                    hidden_layer_size = hidden_layer_size,
+                    )
+        elif(doTest == True):
+            pong.test(episodes = test_run_number,
+                    render = render_testing, 
+                    model_name = model_name,
+                    hidden_layer_size= hidden_layer_size,
+                    )
+
+
 
         # Performance logging:
         # Measuring time
@@ -496,11 +515,6 @@ if __name__ == '__main__':
         # print("Training took: ", end - start)
 
         # Testing 
-        pong.test(episodes = test_run_number,
-                    render = render_testing, 
-                    model_name = model_name,
-                    hidden_layer_size= hidden_layer_size,
-                    ) 
 
 
 
