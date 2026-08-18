@@ -72,125 +72,78 @@ class PongDQL():
         epsilon_history = []
 
         # Track number of steps taken. Used for syncing policy => target network.
-        step_count=0
+        network_step_count=0
 
-        training_start = False
         best_rewards = -100
+        steps = 0
 
+        #This is the loop of one game (21 scores)
         for i in tqdm.tqdm(range(episodes)):
             # For debugging: If we print things during epochs, it breaks the progress bar
             # if(i%500 == 0):
             #     print("Epoch: ", i)
 
-            state = env.reset()[0]  # Initialize to state 0
+            # Initialize frame stack at episode start
+            frame_stack = deque(maxlen=4)
+            
+            state, _ = env.reset()  # Initialize to state 0
+            processed = self.state_to_dqn_input(state)
+            
+            # Warmup: fill frame stack with initial frames
+            for _ in range(4):
+                frame_stack.append(processed)
+            
             terminated = False      # True when agent reaches goal
             truncated = False       # True when steps exceed limit
-
-            # Frame skipping
-            start = True
-            frames = 1 # keep track of the frame so that we now which to skip
-            action = 0 # We do nothing for the first 3 skipped frames
-
             cumulative_reward = 0
-            old_stacker = None
-
-            # Track number of steps taken. Used for terminating early
-            steps = 1 
-             
-
-
+            
+            
             # Agent plays the game until it terminates
+            
+            #This is the Loop for one round
             while(not terminated and not truncated):
+                # Get current stacked state
+                stacked_state = cp.stack(list(frame_stack))  # Shape: (4, 80, 80)
                 
-                
-                if(frames == 4):
-                    fused_state = self.fusion(old_state,state)
-                    if(start == True):
-                        stacker = cp.stack((fused_state,fused_state,fused_state,fused_state))
-                        start = False
-
-                        # Debug log
-                        # print("Stacker.shape:", stacker.shape)
-                    else:
-                        stacker[1::] = stacker[0:3:]
-                        stacker[0] = fused_state  
-
-                    # Select action based on epsilon-greedy
-                    if random.random() < epsilon:
-                        # select random action from modified action space
-                        action =  random.randint(0, 2) 
-                    
-                    else:
-                        # select best action   
-                        # self.unstacker(stacker)
-                        action = policy_dqn.forward(stacker).argmax().item()
-                        
-
-                # Execute action
-                new_state,reward,terminated,truncated,_ = env.step(action+1) # We map the actions 0-2 to 1-3
-
-
-                # Keeping track whether we gained a positive reward to start training
-                # if(0 < reward):
-                #     training_start = True
-                    
-
-                # Debug log
-                # print("Action taken: ", action)
-                    
-                # Keep track of the rewards collected per episode.
-                rewards_per_episode[i] += reward
-
-                # Debug log
-                # if (reward != 0):
-                #     print("Reward: ", reward)
-
-                # Debug log
-                # print(rewards_per_episode[i])
-                
-
-                
-                if(frames == 4):
-                    if (old_stacker is not None) :  
-                        cumulative_reward += reward                     
-                        # Save experience into memory
-                        # self.unstacker(old_stacker)
-                        # self.unstacker(stacker)
-                        memory.append((old_stacker, action, stacker[0], cumulative_reward, terminated)) 
-                    old_stacker = stacker 
-
-                       
-                    # Reset frame count
-                    frames = 1
-
-                    # Reset cumulative reward
-                    cumulative_reward = 0
-                elif(frames == 3):
-                    frames += 1
-                    old_state = state
-                    cumulative_reward += reward
+                # Select action based on epsilon-greedy
+                if random.random() < epsilon:
+                    action = random.randint(0, 2)  # Exploration
                 else:
-                    frames += 1
+                    action = policy_dqn.forward(stacked_state).argmax().item()  # Exploitation
+                    
+                # Execute action and repeat it for 4 frames
+                episode_frames = 0
+                for _ in range(4):
+                    new_state, reward, terminated, truncated, _ = env.step(action + 1)
+                    processed = self.state_to_dqn_input(new_state)
+                    frame_stack.append(processed)
                     cumulative_reward += reward
-
-                if(terminated == True):
-                    tup1,tup2,tup3,tup4,tup5 = memory.pop()
-                    tup5 = True
-                    memory.append((tup1, tup2, tup3, tup4, tup5))
-
-                # Truncation
-                # if(steps == 2_000): # TODO add if reward too little
-                #     truncated = True 
-                #     steps = 0
-
-
-                # Move to the next state
-                state = new_state
-
-
-                # Increment step counter
-                step_count+=1
+                    network_step_count += 1             # Track number of steps taken. Used for syncing policy => target network.
+                    
+                    if terminated or truncated:
+                        break
+                
+                if(steps == 500): #TODO add if reward too little
+                    truncated = True 
+                    steps = 0    
                 steps += 1
+                
+                # Keep track of rewards collected per episode
+                rewards_per_episode[i] += reward
+                
+                # Get new stacked state after action
+                next_stacked_state = cp.stack(list(frame_stack))
+                
+                # Save experience into memory
+                memory.append((stacked_state, action, next_stacked_state, cumulative_reward, terminated))
+                
+                # Reset cumulative reward
+                cumulative_reward = 0
+                
+                if(terminated == True):
+                    # Mark the last transition as terminal
+                    tup1, tup2, tup3, tup4, tup5 = memory.pop()
+                    memory.append((tup1, tup2, tup3, tup4, True))
 
                 
 
@@ -220,10 +173,10 @@ class PongDQL():
                 epsilon_history.append(epsilon)
 
                 # Copy policy network to target network after a certain number of steps
-                if step_count > self.network_sync_rate:
+                if network_step_count > self.network_sync_rate:
                     target_dqn.set_weights(policy_dqn.get_weights())
 
-                    step_count=0
+                    network_step_count=0
 
 
         # Saving the model
@@ -278,26 +231,19 @@ class PongDQL():
         current_q_list = []
         target_q_list = []
         
-        for state, action, single_new_state, reward, terminated in mini_batch:
-
-            # Reconstruct stacked images for the new state
-            new_state = state.copy()
-            new_state[0] = single_new_state
-            new_state[1:4] = state[0:3]
+        for state, action, next_state, reward, terminated in mini_batch:
 
             if terminated: 
-                # When in a terminated state, target q value should be set to the reward.
                 target = reward
-                
             else:
-                # Calculate target q value 
-                target = reward + self.discount_factor_g * target_dqn.forward(new_state).max()
-                
-            # Get the current set of Q values
+                # next_state is already a complete stacked state (4, 80, 80)
+                target = reward + self.discount_factor_g * target_dqn.forward(next_state).max()
+            
+            # Get the current set of Q values from current stacked state
             current_q = policy_dqn.forward(state)
             current_q_list.append(current_q)
 
-            # Get the target set of Q values
+            # Get the target Q values from current state (to modify only the chosen action)
             target_q = target_dqn.forward(state) 
 
             # Adjust the specific action to the target that was just calculated
@@ -467,7 +413,7 @@ if __name__ == '__main__':
     doTrain = True # Set to 'True' to train a new model
     
     render_training = None # set to 'human' to see the training on a gaming screen
-    render_testing = None # set to 'human' to see the testing on a gaming screen
+    render_testing = 'human' # set to 'human' to see the testing on a gaming screen
     
     test_run_number = 10 # How often we let it show what it learned
 
@@ -477,7 +423,7 @@ if __name__ == '__main__':
 
     number_of_experiments = 1 # How many NNs we train
     hidden_layer_size = 200 # default: 
-    epoch_number = 150 # default: 1_000?
+    epoch_number = 100 # default: 1_000?
 
     total_start = time.time()
 
@@ -504,7 +450,7 @@ if __name__ == '__main__':
             pong.test(episodes = test_run_number,
                     render = render_testing, 
                     model_name = model_name,
-                    hidden_layer_size= hidden_layer_size,
+                    hidden_layer_size = hidden_layer_size,
                     )
 
 
