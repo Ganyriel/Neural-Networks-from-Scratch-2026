@@ -28,8 +28,9 @@ class PongDQL():
     discount_factor_g = 0.9         # discount rate of reward (gamma), default: 0.9  
     network_sync_rate = 20_000          # number of steps the agent takes before syncing the policy and target network, default: 
     replay_memory_size = 10_000       # size of replay memory, default:
-    mini_batch_size = 25       # size of the training data set sampled from the replay memory, default: 32
-
+    mini_batch_size = 60       # size of the training data set sampled from the replay memory, default: 32
+    
+    
     # Train the Pong environment
     def train(self, episodes, render = None, model_name = "three_layers", hidden_layer_size = 16):
         
@@ -43,13 +44,20 @@ class PongDQL():
         
         loss_list = []   
 
+        # ========== ADD THESE HYPERPARAMETERS HERE ==========
+        # Steps-Based Linear epsilon decay (Idea: decay over first 100k steps)
+        epsilon_start = 1.0
+        epsilon_end = 0.01
+        epsilon_decay_steps = 100_000
+
+        # ========== INITIALIZATIONS  ==========
+        epsilon = epsilon_start          # Start at 100% exploration
+        epsilon_history = []             # List to keep track of epsilon decay
+        
         # Initializing constants
         num_states = 80 * 80 * 4 # size of the preprocessed input
         num_actions = 3 # up, down and stay
 
-        
-        # Initializing changing variables
-        epsilon = 1 # 1 = 100% random actions
 
         # Create replay memory
         memory = ReplayMemory(self.replay_memory_size)
@@ -68,14 +76,14 @@ class PongDQL():
         # List to keep track of rewards collected per episode. Initialize list to 0's.
         rewards_per_episode = cp.zeros(episodes)
 
-        # List to keep track of epsilon decay
-        epsilon_history = []
 
         # Track number of steps taken. Used for syncing policy => target network.
-        network_step_count=0
+        network_step_count = 0
 
         best_rewards = -100
         steps = 0
+
+
 
         #This is the loop of one game (21 scores)
         for i in tqdm.tqdm(range(episodes)):
@@ -105,9 +113,9 @@ class PongDQL():
                 # Get current stacked state
                 stacked_state = cp.stack(list(frame_stack))  # Shape: (4, 80, 80)
                 
-                # Select action based on epsilon-greedy
+             # Select action based on epsilon-greedy
                 if random.random() < epsilon:
-                    action = random.randint(0, 2)  # Exploration
+                    action = random.randint(0, 2)  # Exploration   
                 else:
                     action = policy_dqn.forward(stacked_state).argmax().item()  # Exploitation
                     
@@ -149,34 +157,32 @@ class PongDQL():
 
             
             # Keep track of highest reward
-            if rewards_per_episode[i]>best_rewards:
+            if rewards_per_episode[i] > best_rewards:
                 best_rewards = rewards_per_episode[i]
 
                 # Debug log
                 #print(f'Best rewards so far: {best_rewards}')
                 
             # Check if enough experience has been collected. 
-            # Here we remove checking for '0 < reward', because pong training works with rewards ranging from -20 to +5 or 10 in the beginning.
+            # Here we remove checking for '0 < reward', because pong training works with rewards ranging from -20 to +5 / +10 in the beginning.
             if (len(memory) > self.mini_batch_size) :
                 mini_batch = memory.sample(self.mini_batch_size)
                 
                 # print("mini_batch.shape: ", mini_batch[0][0].shape)
                 loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn))        
 
-                # Decay epsilon
-                # epsilon = max(epsilon - 1/episodes, 0.00) # possible augmentation: set a minimum epsilon (i.e. change to 0.1)
-                # We added an exponential epsilon decay here. Maybe that'll help.
-                epsilon_decay_rate = 0.995
-                epsilon = max(epsilon * epsilon_decay_rate, 0.01)
-                
-                
+                epsilon = max(
+                    epsilon_end,
+                    epsilon_start - (epsilon_start - epsilon_end) * (network_step_count / epsilon_decay_steps)
+                )
+                  
                 epsilon_history.append(epsilon)
 
                 # Copy policy network to target network after a certain number of steps
                 if network_step_count > self.network_sync_rate:
                     target_dqn.set_weights(policy_dqn.get_weights())
 
-                    network_step_count=0
+                    network_step_count = 0
 
 
         # Saving the model
@@ -216,7 +222,29 @@ class PongDQL():
         plt.subplot(223)
         plt.plot(loss_list)
         plt.title("Loss per episode")
+        
+        
+        # Add rolling window smoothing
+        def compute_moving_average(data, window=50):
+            return cp.convolve(data, cp.ones(window)/window, mode='valid')
 
+        # Plot with proper scaling
+        plt.subplot(224)
+        plt.plot(sum_rewards, linewidth=2, color='blue', label='Agent Performance')
+        # Add horizontal reference lines
+        plt.axhline(y=-21, color='red', linestyle='--', alpha=0.5, linewidth=1, 
+                    label='Random Agent Baseline (-21)')
+        plt.axhline(y=0, color='green', linestyle='--', alpha=0.5, linewidth=1,
+                    label='Learning Threshold (0)')
+        plt.title("Performance vs. Baselines", fontsize=12)
+        plt.xlabel("Episode", fontsize=10)
+        plt.ylabel("Reward", fontsize=10)
+        plt.legend(loc='best', fontsize=8)
+        plt.grid(True, alpha=0.3)
+        plt.ylim([-21, 5])
+        
+        plt.tight_layout(pad=2.5)
+        
         # Save plots
         plt.savefig('pong_dql.png')
         
@@ -423,7 +451,7 @@ if __name__ == '__main__':
 
     number_of_experiments = 1 # How many NNs we train
     hidden_layer_size = 200 # default: 
-    epoch_number = 100 # default: 1_000?
+    epoch_number = 300 # default: 1_000?
 
     total_start = time.time()
 
