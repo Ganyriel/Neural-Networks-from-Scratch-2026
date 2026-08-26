@@ -6,14 +6,25 @@ import random
 import pickle
 import time
 import tqdm
-
 import sys
+import os
 
-# setting path
-sys.path.append('../shared_files')
+# get directory and shared_files
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SHARED_DIR = os.path.join(SCRIPT_DIR, '..', 'shared_files')
 
+# make sure path exists
+SHARED_DIR = os.path.abspath(SHARED_DIR)
+
+
+if SHARED_DIR not in sys.path:
+    sys.path.insert(0, SHARED_DIR)  # insert path into sys.path with high priority
+
+# file imports
 from utils_numpy import compute_loss_mse, compute_gradient, ReplayMemory, Adam, PrimitiveOptimizer, xavier_initialization, simple_initialization
 from networks_numpy import create_network
+from run_logger import RunLogger
+
 
 # FrozenLake Deep Q-Learning
 class FrozenLakeDQL():
@@ -29,9 +40,19 @@ class FrozenLakeDQL():
 
     # Train the FrozenLake environment
     def train(self, episodes, render = None, is_slippery = False, model_name = "three_layers", optimizer = Adam, initializator = xavier_initialization, hidden_layer_size = 16):
-
-        # Create FrozenLake instance
-
+        
+        # initialize the current config for logging
+        config = {
+            "model_name": model_name,
+            "optimizer": optimizer.__name__ if hasattr(optimizer, "__name__") else str(optimizer),
+            "initializator": initializator.__name__ if hasattr(initializator, "__name__") else str(initializator),
+            "hidden_layer_size": hidden_layer_size,
+            "is_slippery": is_slippery,
+            "seed": getattr(self, "seed", 0),
+            "output_dir": getattr(self, "output_dir", "results"),
+            "episodes": episodes,
+        }
+        logger = RunLogger(config, output_dir=config.get("output_dir", "results"))
         
         # Creating environment
         env = gym.make(
@@ -111,25 +132,40 @@ class FrozenLakeDQL():
                 # Keep track of the rewards collected per episode.
                 rewards_per_episode[i] += reward
 
+            current_loss = loss_list[-1] if loss_list else 0.0
+            logger.log_episode(float(rewards_per_episode[i]), float(current_loss))
+
             
             # Check if enough experience has been collected and if at least 1 reward has been collected
             if (len(memory) > self.mini_batch_size and np.max(rewards_per_episode) > 0): 
                 mini_batch = memory.sample(self.mini_batch_size)
-                loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn))        
+                loss = self.optimize(mini_batch, policy_dqn, target_dqn)
+                loss_list.append(loss)        
+                
+                # later for evaluation
+                # eval_interval = getattr(self, "eval_interval", None)
+                # if eval_interval and i % eval_interval == 0:
+                #     eval_env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=False)
+                #     eval_reward = self.evaluate_greedy(policy_dqn, eval_env, num_eval_episodes=10)
+                #     logger.log_eval(i, eval_reward)
+                #     eval_env.close()    
 
                 # Decay epsilon
-                epsilon = max(epsilon - 1/episodes, 0.00) # possible augmentation: set a minimum epsilon (i.e. change to 0.1)
+                epsilon = max(epsilon - 1 / episodes, 0.00) # possible augmentation: set a minimum epsilon (i.e. change to 0.1)
 
                 epsilon_history.append(epsilon)
 
                 # Copy policy network to target network after a certain number of steps
                 if step_count > self.network_sync_rate:
                     target_dqn.set_weights(policy_dqn.get_weights())
-
                     step_count=0
+                    
 
         # Close environment
         env.close()
+        
+        logger.save()
+        print(f"[train] Training completed. Results saved to {config['output_dir']}")
 
         # # Debugging logs:
         # # Log how often the agent won the game
@@ -317,6 +353,21 @@ class FrozenLakeDQL():
             # The printed layout matches the FrozenLake map.
             print(f'{s:02},{best_action},[{q_values}]', end=' ')         
             print() # Print a new line for every state
+    
+    def evaluate_greedy(self, policy_dqn, env, num_eval_episodes=10):
+        """to evaluate complete greedy (no exploration)"""
+        rewards = []
+        for _ in range(num_eval_episodes):
+            state = env.reset()[0]
+            total = 0
+            terminated = False
+            truncated = False
+            while not (terminated or truncated):
+                action = policy_dqn.forward(self.state_to_dqn_input(state, env.observation_space.n)).argmax().item()
+                state, reward, terminated, truncated, _ = env.step(action)
+                total += reward
+            rewards.append(total)
+        return np.mean(rewards)
 
 if __name__ == '__main__':
     # Variables for the environment

@@ -13,6 +13,9 @@ contains helper functions as well as optimizers and weight initializations
 #### networks_numpy
 contains functions for creating neural networks
 
+#### run_logger
+contains a class for functions to log during train
+
 
 ### FrozenLake Folder
 #### FrozenLakeDeepQ
@@ -72,20 +75,6 @@ It has similar issues as PongDeepQNumpy, but is compatible with convolutional ne
 #### PongExperimentalPreprocessing
 contains an almost finished implementation of Deep Q learning for Pong. It uses very strong preprocessing.
 It requires hyperparameter tuning.
-
-
-## Durak Folder
-#### DurakNotes.odt
-contains a description of the game and design ideas for a agent and environment.
-
-#### DurakQLearning
-contains a sample for creating a Durak Q Learning approach.
-Has to be altered and adjusted to fit the Environment. We are gonna see how that plays out.
-
-#### DurakEnvironment
-contains a not yet fully implemented Environment for Durak. Yet it serves as a sample, that still needs a lot adjjustme>
-I'm doing this to understand custom environment creation and wrappers etc.
-After some research and game analysis and so on. Durak seems not that easy to solve.
 
 
 ## Ideas for improving training

@@ -224,9 +224,6 @@ class PongDQL():
         plt.title("Loss per episode")
         
         
-        # Add rolling window smoothing
-        def compute_moving_average(data, window=50):
-            return cp.convolve(data, cp.ones(window)/window, mode='valid')
 
         # Plot with proper scaling
         plt.subplot(224)
