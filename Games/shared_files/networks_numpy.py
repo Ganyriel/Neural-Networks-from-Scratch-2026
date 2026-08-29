@@ -1,6 +1,6 @@
 import numpy as cp
 #import cupy as cp
-from layers_numpy import Linear, Sigmoid, Relu, Conv, Flatten
+from layers_numpy import Linear, Sigmoid, Relu, Conv, Flatten, Tanh, LeakyRelu
 from utils_numpy import xavier_initialization, simple_initialization, Adam
 
 class NeuralNetwork:
@@ -50,14 +50,14 @@ class NeuralNetwork:
     def get_gradients(self):
         return [layer.get_gradients() for layer in self.trainable_layers] 
         
-def create_network(in_states, h1_nodes, out_actions, batch_size: int, model_name = "three_layers", weight_initializor = xavier_initialization, optimizer = Adam):
+def create_network(in_states, h1_nodes, out_actions, batch_size: int, model_name = "three_layers", weight_initializor = xavier_initialization, optimizer = Adam, activation_function = Relu):
     if(model_name == "three_layers"):
         model = NeuralNetwork([
             Flatten(), # Flattening Input
             Linear(in_states, h1_nodes, batch_size, weight_initializor),   # Linear layer 
-            Relu(), # Relu activation layer
+            activation_function(), # Activation function
             Linear(h1_nodes, h1_nodes, batch_size, weight_initializor),   # Linear layer 
-            Relu(), # Relu activation layer
+            activation_function(), # Activation function
             Linear(h1_nodes, out_actions, batch_size, weight_initializor), # Linear layer 
         ],optimizer=optimizer, batch_size=batch_size)
 
@@ -65,23 +65,22 @@ def create_network(in_states, h1_nodes, out_actions, batch_size: int, model_name
         model = NeuralNetwork([
             Flatten(), # Flattening Input
             Linear(in_states, h1_nodes, batch_size, weight_initializor),   # Linear layer with adam optimizer
-            Relu(), # Relu activation layer
+            activation_function(), # Activation function
             Linear(h1_nodes, out_actions, batch_size, weight_initializor), # Linear layer with adam optimizer
         ],optimizer=optimizer, batch_size=batch_size)
-        
 
-    if(model_name == "custom_model_pong"):
+    if(model_name == "triple_convolutional_model_pong"):
         # TODO Test 
         model = NeuralNetwork([
             Conv(in_channels = 4, out_channels = 32, kernel_size = 8, stride = 4, padding = 2), # Convolutional layer
-            Relu(), # Relu activation layer
+            activation_function(), # Activation function
             Conv(in_channels = 32, out_channels = 64, kernel_size = 4, stride = 2, padding = 0), # Convolutional layer
-            Relu(), # Relu activation layer
+            activation_function(), # Activation function
             Conv(in_channels = 64, out_channels = 64, kernel_size = 3, stride = 1, padding = 0), # Convolutional layer
-            Relu(), # Relu activation layer
+            activation_function(), # Activation function
             Flatten(), # Flattening Input
             Linear(3136, 512, batch_size, weight_initializor),   # Linear layer with adam optimizer
-            Relu(), # Relu activation layer
+            activation_function(), # Activation function
             Linear(512, out_actions, batch_size, weight_initializor), # Linear layer with adam optimizer
         ],optimizer=optimizer, batch_size=batch_size)
 
@@ -89,10 +88,10 @@ def create_network(in_states, h1_nodes, out_actions, batch_size: int, model_name
         # TODO Test 
         model = NeuralNetwork([
             Conv(in_channels = 4, out_channels = 16, kernel_size = 8, stride = 4, padding = 2), # Convolutional layer
-            Relu(), # Relu activation layer
+            activation_function(), # Activation function
             Flatten(), # Flattening Input
             Linear(400*16, 200, batch_size, weight_initializor),   # Linear layer with adam optimizer
-            Relu(), # Relu activation layer
+            activation_function(), # Activation function
             Linear(200, out_actions, batch_size, weight_initializor), # Linear layer with adam optimizer
         ],optimizer=optimizer, batch_size=batch_size)
 

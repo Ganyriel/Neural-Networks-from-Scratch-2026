@@ -2,9 +2,6 @@ import numpy as cp
 #import cupy as cp
 import time
 
-from utils_numpy import xavier_initialization, simple_initialization
-
-
 # ---------------------------------------------------------
 # Linear layer
 # ---------------------------------------------------------
@@ -49,9 +46,9 @@ class Linear:
         self.grad_bias = cp.sum(grad_output, axis=0)
         return grad_input
 
-    def update(self, lr, change) -> None:
-        self.weight = self.weight - lr * change[0]
-        self.bias = self.bias - lr * change[1]
+    def update(self, lr, difference) -> None:
+        self.weight = self.weight - lr * difference[0]
+        self.bias = self.bias - lr * difference[1]
 
     def get_weights(self):
         # returns the weights and bias
@@ -92,8 +89,9 @@ class Conv:
         self.padding = padding
 
         # Initialize weights and biases
-        self.weight = 0.1 * cp.random.randn(out_channels, in_channels, kernel_size, kernel_size)
-        self.bias= cp.zeros((out_channels, 1))
+        rng = cp.random.default_rng(seed = 42)
+        self.weight = 0.1 * rng.standard_normal(size = (out_channels, in_channels, kernel_size, kernel_size))
+        self.bias= cp.zeros((out_channels, 1)) #0.1 * rng.standard_normal(size = (out_channels, 1)) 
 
         # Initialize gradients
         self.grad_weight = None
@@ -104,7 +102,7 @@ class Conv:
         
         # temporary variables in backward()  
         self.col = None
-        self.col_W = None
+        self.col_weights = None
 
         # TODO REMOVE WHEN CERTAIN WHICH METHOD TO USE
         # gradient of weight and bias 
@@ -186,7 +184,7 @@ class Conv:
         out_height = (height + 2 * self.padding - self.kernel_size) // self.stride + 1
         out_width = (width + 2 * self.padding - self.kernel_size) // self.stride + 1
 
-        # STRIDE CHECK
+        # Check if stride is set correctly
         if int(out_height) != out_height or int(out_width) != out_width:
         
             raise  ValueError(f'Stride {self.stride} is incorrect')
@@ -210,12 +208,12 @@ class Conv:
         FW = self.kernel_size
 
         col = self.im2col(input_data = inp, filter_h = FH, filter_w = FW, stride=self.stride, pad = self.padding)
-        col_W = self.weight.reshape(self.out_channels, -1).T
-        out = cp.dot(col, col_W) + self.bias.T
+        col_weights = self.weight.reshape(self.out_channels, -1).T
+        out = cp.dot(col, col_weights) + self.bias.T
         out = out.reshape(batch_size, out_height, out_width, -1).transpose(0, 3, 1, 2)
 
         self.col = col
-        self.col_W = col_W
+        self.col_weights = col_weights
 
         self.output = out
 
@@ -280,7 +278,7 @@ class Conv:
         self.dW = self.dW.transpose(1, 0).reshape(self.out_channels, self.in_channels, FH, FW)
 
         # Calculation of backward gradient
-        dcol = cp.dot(dout, self.col_W.T)
+        dcol = cp.dot(dout, self.col_weights.T)
         dx = self.col2im(dcol, self.inp.shape, FH, FW, self.stride, self.padding)
         
         # Debug log
@@ -306,9 +304,9 @@ class Conv:
         
         return grad_input
 
-    def update(self, lr, change) -> None:
-        self.weight = self.weight - lr * change[0]
-        self.bias = self.bias - lr * change[1]
+    def update(self, lr, difference) -> None:
+        self.weight = self.weight - lr * difference[0]
+        self.bias = self.bias - lr * difference[1]
 
     def get_weights(self):
         # returns the weights and bias
@@ -328,28 +326,51 @@ class Conv:
     def get_gradients(self):
         return (self.grad_weight, self.grad_bias)
 
-
 # ---------------------------------------------------------
-# Sigmoid activation
-# ---------------------------------------------------------
-class Sigmoid:
-    """Sigmoid activation function"""
+# Flatten
+# ---------------------------------------------------------    
+class Flatten:
+    def __init__(self):
+        self.name = "Flatten"
+        self.trainable = False
 
+    def forward(self, inp):
+        self.inp = inp
+
+        return inp.flatten()
+
+    def backward(self, gradient):
+        return cp.reshape(gradient, self.inp.shape).astype(cp.float64)
+
+    def print_name(self):
+        print(self.name)
+
+    def is_trainable(self):
+        return self.trainable
+
+"""
+# TODO implement maybe
+# ---------------------------------------------------------
+# Softmax
+# ---------------------------------------------------------
+class Softmax:
     def __init__(self) -> None:
-        super(Sigmoid, self).__init__()
-        self.name = "Sigmoid Layer"
+        super(Softmax, self).__init__()
+        self.name = "Softmax Layer"
         self.trainable = False
         self.input = 0
         self.output = 0
 
-    def forward(self, inp: cp.ndarray) -> cp.ndarray:
-        self.input = inp
-        output = 1 / (1 + cp.exp(-self.input))
+    def forward(self, input: cp.ndarray) -> cp.ndarray:
+        self.input = input
+        output = cp.exp(input) / cp.sum(cp.exp(input), axis=1, keepdims=True)
         self.output = output
         return output
 
     def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
-        grad_input = grad_output * (self.output * (1 - self.output))
+        # Computes the gradient of ReLU
+        grad_input = grad_output.copy()
+        raise NotImplementedError
         return grad_input
 
     def print_name(self):
@@ -357,6 +378,27 @@ class Sigmoid:
 
     def is_trainable(self):
         return self.trainable
+
+    # FROM THE INTERNET
+    def forward(self, inp: np.ndarray) -> np.ndarray:
+        # Subtract max for numerical stability
+        exp_values = np.exp(inp - np.max(inp, axis=1, keepdims=True))
+        self.out = exp_values / np.sum(exp_values, axis=1, keepdims=True)
+        return self.out
+
+    def backward(self, up_grad: np.ndarray) -> np.ndarray:
+        #Backward pass for Softmax using the Jacobian matrix.
+        down_grad = np.empty_like(up_grad)
+        for i in range(up_grad.shape[0]):
+            single_output = self.out[i].reshape(-1, 1)
+            jacobian = np.diagflat(single_output) - np.dot(single_output, single_output.T)
+            down_grad[i] = np.dot(jacobian, up_grad[i])
+        return down_grad
+"""
+
+# ---------------------------------------------------------
+# Activation functions
+# ---------------------------------------------------------
 
 # ---------------------------------------------------------
 # ReLU activation
@@ -390,22 +432,180 @@ class Relu:
         return self.trainable
 
 
+# ---------------------------------------------------------
+# Sigmoid activation
+# ---------------------------------------------------------
+class Sigmoid:
+    """Sigmoid activation function"""
+
+    def __init__(self) -> None:
+        super(Sigmoid, self).__init__()
+        self.name = "Sigmoid Layer"
+        self.trainable = False
+        self.input = 0
+        self.output = 0
+
+    def forward(self, inp: cp.ndarray) -> cp.ndarray:
+        self.input = inp
+        output = 1 / (1 + cp.exp(-self.input))
+        self.output = output
+        return output
+
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        grad_input = grad_output * (self.output * (1 - self.output))
+        return grad_input
+
+    def print_name(self):
+        print(self.name)
+
+    def is_trainable(self):
+        return self.trainable
+
 
 # ---------------------------------------------------------
-# Flatten
-# ---------------------------------------------------------    
-class Flatten:
-    def __init__(self):
-        self.name = "Flatten"
+# Tanh activation
+# ---------------------------------------------------------
+class Tanh:
+    """Tanh activation function"""
+
+    def __init__(self) -> None:
+        super(Tanh, self).__init__()
+        self.name = "Tanh Layer"
         self.trainable = False
+        self.input = None
+        self.output = None
 
-    def forward(self, inp):
-        self.inp = inp
+    def forward(self, input: cp.ndarray) -> cp.ndarray:
+        self.input = input
+        output = cp.tanh(input)
+        self.output = output
+        return output
 
-        return inp.flatten()
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        # Computes the gradient of ReLU
+        grad_input = grad_output*(1-self.output**2)
+        return grad_input
 
-    def backward(self, gradient):
-        return cp.reshape(gradient, self.inp.shape).astype(cp.float64)
+    def print_name(self):
+        print(self.name)
+
+    def is_trainable(self):
+        return self.trainable
+
+
+# ---------------------------------------------------------
+# Leaky ReLU activation
+# ---------------------------------------------------------
+class LeakyRelu:
+    """LeakyReLU activation function"""
+
+    def __init__(self) -> None:
+        super(LeakyRelu, self).__init__()
+        self.name = "LeakyReLu Layer"
+        self.trainable = False
+        self.alpha = 0.1
+        self.input = 0
+        self.output = 0
+
+    def forward(self, input: cp.ndarray) -> cp.ndarray:
+        self.input = input
+        output = input.copy()
+        output[output<0] *= self.alpha
+        self.output = output
+        return output
+
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        # Computes the gradient of ReLU
+        grad_input = grad_output.copy()
+        grad_input[self.input <=0] *= self.alpha
+        return grad_input
+
+    
+
+    def print_name(self):
+        print(self.name)
+
+    def is_trainable(self):
+        return self.trainable
+
+"""
+# TODO update and gradient calculation not implemented
+# ---------------------------------------------------------
+# Parametric ReLU activation
+# ---------------------------------------------------------
+class PRelu:
+    #Parametric ReLU activation function
+
+    def __init__(self) -> None:
+        super(PRelu, self).__init__()
+        self.name = "PReLu Layer"
+        self.trainable = True
+        self.alpha = 0.25
+        self.input = 0
+        self.output = 0
+        self.grad_alpha = None
+
+    def forward(self, input: cp.ndarray) -> cp.ndarray:
+        self.input = input
+        output = cp.maximum(input,0)+self.alpha*cp.minimum(0,input)
+        self.output = output
+        return output
+
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        # Computes the gradient of ReLU
+        grad_input = grad_output.copy()
+        grad_input[self.input <=0] *= self.alpha
+        return grad_input
+
+    def update(self, lr, difference) -> None:
+        self.alpha = self.alpha - lr * difference[0]
+    
+    def get_weights(self):
+        # returns the alpha
+        return [self.alpha]
+    
+    def set_weights(self, new_weights):
+        # sets weights and bias of the neural network
+        self.alpha = new_weights[0]
+    
+    def print_name(self):
+        print(self.name)
+    
+    def is_trainable(self):
+        return self.trainable
+    
+    def get_gradients(self):
+        return [self.grad_alpha,cp.zeros_like(self.grad_alpha)]
+"""
+
+
+# ---------------------------------------------------------
+# Exponential LU activation
+# ---------------------------------------------------------
+class Elu:
+    """Exponential LU activation function"""
+
+    def __init__(self) -> None:
+        super(Elu, self).__init__()
+        self.name = "ELu Layer"
+        self.trainable = False
+        self.alpha = 0.1
+        self.input = 0
+        self.output = 0
+
+    def forward(self, input: cp.ndarray) -> cp.ndarray:
+        self.input = input
+        output = cp.maximum(input,0)+self.alpha*(cp.exp(cp.minimum(0,input))-1)
+        self.output = output
+        return output
+
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        # Computes the gradient of ReLU
+        grad_input = grad_output.copy()
+        grad_input[self.input <=0] *= self.alpha*cp.exp(self.input[self.input <=0])
+        return grad_input
+
+    
 
     def print_name(self):
         print(self.name)

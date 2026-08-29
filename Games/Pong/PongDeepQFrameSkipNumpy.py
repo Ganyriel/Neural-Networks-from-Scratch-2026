@@ -14,7 +14,8 @@ import sys
 # setting path
 sys.path.append('../shared_files')
 
-from utils_numpy import compute_loss_mse, compute_gradient, ReplayMemory
+import layers_numpy as ly
+import utils_numpy as ut
 from networks_numpy import create_network
 
 
@@ -32,7 +33,7 @@ class PongDQL():
     
     
     # Train the Pong environment
-    def train(self, episodes, render = None, model_name = "three_layers", hidden_layer_size = 16):
+    def train(self, episodes, render = None, model_name = "three_layers", optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Relu, hidden_layer_size = 16):
         
         # Creating environment
         env = gym.make(#'ALE/Breakout-v5', # Not working for unkown reason
@@ -60,11 +61,11 @@ class PongDQL():
 
 
         # Create replay memory
-        memory = ReplayMemory(self.replay_memory_size)
+        memory = ut.ReplayMemory(self.replay_memory_size)
 
         # Initializing policy and target network
-        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name)        
-        target_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name)        
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer, activation_function = activation)        
+        target_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer, activation_function = activation)        
         
                    
         # Print model architecture
@@ -150,7 +151,7 @@ class PongDQL():
                 
                 if(terminated == True):
                     # Mark the last transition as terminal
-                    tup1, tup2, tup3, tup4, tup5 = memory.pop()
+                    tup1, tup2, tup3, tup4, _ = memory.pop()
                     memory.append((tup1, tup2, tup3, tup4, True))
 
                 
@@ -276,13 +277,13 @@ class PongDQL():
             target_q_list.append(target_q)
 
         # Compute loss for the whole minibatch
-        loss = compute_loss_mse(cp.concatenate(target_q_list), cp.concatenate(current_q_list))
+        loss = ut.compute_loss_mse(cp.concatenate(target_q_list), cp.concatenate(current_q_list))
 
         # Debug log
         # print("Loss: ", loss)
 
         # Optimize the model 
-        gradient = compute_gradient(cp.concatenate(target_q_list), cp.concatenate(current_q_list))
+        gradient = ut.compute_gradient(cp.concatenate(target_q_list), cp.concatenate(current_q_list))
         
         # To save input in Neural Network
 
@@ -353,7 +354,7 @@ class PongDQL():
 
 
     # Run the Pong environment with the learned policy
-    def test(self, episodes, render = None, model_name = "three_layers", hidden_layer_size = 16):
+    def test(self, episodes, render = None, model_name = "three_layers", optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Relu, hidden_layer_size = 16):
         print("")
         print("Starting Testing")
         print("")
@@ -371,7 +372,7 @@ class PongDQL():
 
 
         # Initialize Neural Network
-        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name)        
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer, activation_function = activation)        
 
         # Print model architecture
         policy_dqn.print_name()
@@ -442,17 +443,29 @@ if __name__ == '__main__':
     
     test_run_number = 10 # How often we let it show what it learned
 
-
-    models = ["two_layers", "three_layers", "custom_model_pong", "convolutional_pong"]
+    # Choice of model
+    models = ["two_layers", "three_layers", "triple_convolutional_model_pong", "convolutional_pong"]
     model_name = models[2]
+
+    # Choice of optimizer
+    optimizers = [ut.Adam, ut.PrimitiveOptimizer] 
+    optimizer_name = optimizers[0]
+    
+    # Choice of weight initialization (for linear layers only, Conv has its own initialization)
+    weight_initializations = [ut.xavier_initialization, ut.xavier_initialization_uniform, ut.xavier_initialization_normal,ut.simple_initialization] 
+    initializator_name = weight_initializations[0]
+    
+    # Choice of activation function
+    activation_functions = [ly.Relu, ly.Sigmoid, ly.Tanh, ly.LeakyRelu, ly.Elu]
+    activation_name = activation_functions[0]
+    
 
     number_of_experiments = 1 # How many NNs we train
     hidden_layer_size = 200 # default: 
     epoch_number = 300 # default: 1_000?
 
-    total_start = time.time()
 
-    
+    total_start = time.time()
     
     for i in cp.arange(number_of_experiments)+1:
         print("Experiment number: ", i)
@@ -469,13 +482,19 @@ if __name__ == '__main__':
                     episodes = epoch_number, 
                     render = render_training, 
                     model_name = model_name,
+                    initializator=initializator_name,
+                    optimizer = optimizer_name,
                     hidden_layer_size = hidden_layer_size,
+                    activation = activation_name
                     )
         elif(doTest == True):
             pong.test(episodes = test_run_number,
                     render = render_testing, 
                     model_name = model_name,
+                    initializator=initializator_name,
+                    optimizer = optimizer_name,
                     hidden_layer_size = hidden_layer_size,
+                    activation = activation_name
                     )
 
 

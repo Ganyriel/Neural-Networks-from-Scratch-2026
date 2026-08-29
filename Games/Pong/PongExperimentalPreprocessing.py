@@ -14,7 +14,8 @@ import sys
 # setting path
 sys.path.append('../shared_files')
 
-from utils_numpy import compute_loss_mse, compute_gradient, ReplayMemory, Adam, PrimitiveOptimizer, xavier_initialization, simple_initialization
+import layers_numpy as ly
+import utils_numpy as ut
 from networks_numpy import create_network
 
 
@@ -34,7 +35,7 @@ class PongDQL():
 
 
     # Train the Pong environment
-    def train(self, episodes, render = None, model_name = "three_layers",  optimizer = Adam, initializator = xavier_initialization, hidden_layer_size = 16):
+    def train(self, episodes, render = None, model_name = "three_layers",  optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Relu, hidden_layer_size = 16):
         
         # Creating environment
         env = gym.make('PongNoFrameskip-v4',
@@ -53,11 +54,11 @@ class PongDQL():
         epsilon = 1 # 1 = 100% random actions
 
         # Initializing Replay Memory
-        memory = ReplayMemory(self.replay_memory_size)
+        memory = ut.ReplayMemory(self.replay_memory_size)
 
         # Create policy and target network
-        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer)        
-        target_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer)        
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer, activation_function = activation)        
+        target_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer, activation_function = activation)        
                 
         # Print model architecture
         policy_dqn.print_name()
@@ -281,13 +282,13 @@ class PongDQL():
             target_q_list.append(target_q)
                 
         # Compute loss for the whole minibatch
-        loss = compute_loss_mse(cp.concatenate(target_q_list), cp.concatenate(current_q_list))
+        loss = ut.compute_loss_mse(cp.concatenate(target_q_list), cp.concatenate(current_q_list))
 
         # Debug log
         # print("Loss: ", loss)
 
         # Optimize the model 
-        gradient = compute_gradient(cp.concatenate(target_q_list), cp.concatenate(current_q_list))
+        gradient = ut.compute_gradient(cp.concatenate(target_q_list), cp.concatenate(current_q_list))
         
         # To save input in Neural Network
         inp = [preprocessed_state for preprocessed_state, _, _, _, _ in mini_batch]
@@ -461,7 +462,7 @@ class PongDQL():
 
 
     # Run the Pong environment with the learned policy
-    def test(self, episodes, render = None, model_name = "three_layers", optimizer = Adam, initializator = xavier_initialization, hidden_layer_size = 16):
+    def test(self, episodes, render = None, model_name = "three_layers", optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Relu, hidden_layer_size = 16):
         # Create Pong instance
         env = gym.make('PongNoFrameskip-v4',
                         render_mode=render, 
@@ -473,7 +474,7 @@ class PongDQL():
 
         
         # Initialize Neural Network
-        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer)        
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer, activation_function = activation)        
 
         # Print model architecture
         policy_dqn.print_name()
@@ -582,16 +583,19 @@ if __name__ == '__main__':
     model_name = models[1]
 
     # Choice of optimizer
-    optimizers = [Adam, PrimitiveOptimizer] 
+    optimizers = [ut.Adam, ut.PrimitiveOptimizer] 
     optimizer_name = optimizers[0]
 
     # Choice of weight initialization
-    weight_initializations = [xavier_initialization, simple_initialization] 
+    weight_initializations = [ut.xavier_initialization, ut.xavier_initialization_uniform, ut.xavier_initialization_normal,ut.simple_initialization] 
     initializator_name = weight_initializations[0]
 
+    # Choice of activation function
+    activation_functions = [ly.Relu, ly.Sigmoid, ly.Tanh, ly.LeakyRelu, ly.Elu]
+    activation_name = activation_functions[3]
 
     hidden_layer_size = 200 # default: 200
-    epoch_number = 2_000 # default: 
+    epoch_number = 1_000 # default: 
 
     total_start = time.time()
 
@@ -608,7 +612,8 @@ if __name__ == '__main__':
             model_name = model_name,
             initializator=initializator_name,
             optimizer = optimizer_name,
-            hidden_layer_size = hidden_layer_size
+            hidden_layer_size = hidden_layer_size,
+            activation = activation_name
             )
 
     # Testing 
@@ -618,7 +623,8 @@ if __name__ == '__main__':
                     model_name = model_name,
                     initializator=initializator_name,
                     optimizer = optimizer_name,
-                    hidden_layer_size= hidden_layer_size) 
+                    hidden_layer_size= hidden_layer_size,
+                    activation = activation_name) 
 
     
     

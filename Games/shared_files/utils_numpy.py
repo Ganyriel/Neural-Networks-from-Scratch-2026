@@ -27,6 +27,7 @@ def compute_gradient(target: cp.ndarray, prediction: cp.ndarray) -> cp.ndarray:
 class ReplayMemory():
     def __init__(self, maxlen):
         self.memory = deque([], maxlen=maxlen)
+        
     
     def append(self, transition):
         self.memory.append(transition)
@@ -44,16 +45,33 @@ class ReplayMemory():
 # Weight Initializations
 # ---------------------------------------------------------
 
+
 def xavier_initialization(in_features, out_features):
     k = cp.sqrt(1/(in_features)) 
-    rng = cp.random.default_rng() 
+    rng = cp.random.default_rng(seed = 42) 
     weight = rng.uniform(-k,k, size=(in_features, out_features))
     bias = rng.uniform(-k,k, size=(out_features,))
 
     return weight, bias
 
+def xavier_initialization_uniform(in_features, out_features):
+    k = cp.sqrt(6/(in_features+out_features)) 
+    rng = cp.random.default_rng(seed = 42) 
+    weight = rng.uniform(-k,k, size=(in_features, out_features))
+    bias = rng.uniform(-k,k, size=(out_features,))
+
+    return weight, bias
+
+def xavier_initialization_normal(in_features, out_features):
+    k = cp.sqrt(2/(in_features+out_features)) 
+    rng = cp.random.default_rng(seed = 42) 
+    weight = rng.normal(0,k, size=(in_features, out_features))
+    bias = rng.normal(0,k, size=(out_features,))
+
+    return weight, bias
+
 def simple_initialization(in_features, out_features):
-    rng = cp.random.default_rng(seed=42)
+    rng = cp.random.default_rng(seed = 42)
     weight = rng.normal(size=(in_features, out_features)) * cp.sqrt(1.0 / in_features)
     bias = rng.normal(size=(out_features,)) * cp.sqrt(1.0 / in_features)
 

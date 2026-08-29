@@ -21,7 +21,8 @@ if SHARED_DIR not in sys.path:
     sys.path.insert(0, SHARED_DIR)  # insert path into sys.path with high priority
 
 # file imports
-from utils_numpy import compute_loss_mse, compute_gradient, ReplayMemory, Adam, PrimitiveOptimizer, xavier_initialization, simple_initialization
+import utils_numpy as ut 
+import layers_numpy as ly
 from networks_numpy import create_network
 from run_logger import RunLogger
 
@@ -39,13 +40,14 @@ class FrozenLakeDQL():
 
 
     # Train the FrozenLake environment
-    def train(self, episodes, render = None, is_slippery = False, model_name = "three_layers", optimizer = Adam, initializator = xavier_initialization, hidden_layer_size = 16):
+    def train(self, episodes, render = None, is_slippery = False, model_name = "three_layers", optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Relu, hidden_layer_size = 16):
         
         # initialize the current config for logging
         config = {
             "model_name": model_name,
             "optimizer": optimizer.__name__ if hasattr(optimizer, "__name__") else str(optimizer),
             "initializator": initializator.__name__ if hasattr(initializator, "__name__") else str(initializator),
+            "activation function": activation.__name__ if hasattr(activation, "__name__") else str(activation),
             "hidden_layer_size": hidden_layer_size,
             "is_slippery": is_slippery,
             "seed": getattr(self, "seed", 0),
@@ -75,11 +77,11 @@ class FrozenLakeDQL():
         epsilon = 1 # 1 = 100% random actions
 
         # Initializing Replay Memory
-        memory = ReplayMemory(self.replay_memory_size)
+        memory = ut.ReplayMemory(self.replay_memory_size)
 
         # Create policy and target network
-        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer)        
-        target_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer)        
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, activation_function = activation, optimizer = optimizer)        
+        target_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, activation_function = activation, optimizer = optimizer)        
 
         # Print model architecture
         policy_dqn.print_name()
@@ -246,10 +248,10 @@ class FrozenLakeDQL():
             target_q_list.append(target_q)
                 
         # Compute loss for the whole minibatch
-        loss = compute_loss_mse(np.concatenate(target_q_list), np.concatenate(current_q_list))
+        loss = ut.compute_loss_mse(np.concatenate(target_q_list), np.concatenate(current_q_list))
         
         # Optimize the model 
-        gradient = compute_gradient(np.concatenate(target_q_list), np.concatenate(current_q_list))
+        gradient = ut.compute_gradient(np.concatenate(target_q_list), np.concatenate(current_q_list))
         
         # To save input in Neural Network
         inp = [np.array(self.state_to_dqn_input(state, num_states)) for state, _, _, _, _ in mini_batch]
@@ -276,7 +278,7 @@ class FrozenLakeDQL():
         return input_tensor
 
     # Run the FrozeLake environment with the learned policy
-    def test(self, episodes, is_slippery = False, render = None, model_name = "three_layers",  optimizer = Adam, initializator = xavier_initialization, hidden_layer_size = 16):
+    def test(self, episodes, is_slippery = False, render = None, model_name = "three_layers",  optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Relu, hidden_layer_size = 16):
         succesful = 0
 
 
@@ -288,7 +290,7 @@ class FrozenLakeDQL():
         num_actions = env.action_space.n
 
         # Initialize Neural Network
-        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer)        
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer, activation_function = activation)        
  
 
         # Loading the model
@@ -385,16 +387,20 @@ if __name__ == '__main__':
     hidden_layer_size = 16 # default: 16
 
     # Choice of optimizer
-    optimizers = [Adam, PrimitiveOptimizer] 
+    optimizers = [ut.Adam, ut.PrimitiveOptimizer] 
     optimizer_name = optimizers[0]
 
 
     # Choice of weight initialization
-    weight_initializations = [xavier_initialization, simple_initialization] 
-    initializator_name = weight_initializations[0]
+    weight_initializations = [ut.xavier_initialization, ut.xavier_initialization_uniform, ut.xavier_initialization_normal, ut.simple_initialization] 
+    initializator_name = weight_initializations[2]
+
+    # Choice of activation function
+    activation_functions = [ly.Relu, ly.Sigmoid, ly.Tanh, ly.LeakyRelu, ly.Elu]
+    activation_name = activation_functions[0]
 
     # Training parameters
-    number_of_experiments = 10 # How many NNs we train
+    number_of_experiments = 50 # How many NNs we train
     epoch_number = 1_000 # default: 1_000 
 
     total_start = time.time()
@@ -404,7 +410,9 @@ if __name__ == '__main__':
     
 
     for i in np.arange(number_of_experiments)+1:
-        print("Experiment number: ", i)
+        print("")
+        print("_________________________________________________________________")
+        print("Experiment number: ", i, "/", number_of_experiments)
 
         # Performance logging:
         # start = time.time()
@@ -421,7 +429,8 @@ if __name__ == '__main__':
                 model_name = model_name,
                 hidden_layer_size = hidden_layer_size,
                 initializator=initializator_name,
-                optimizer = optimizer_name)
+                optimizer = optimizer_name,
+                activation = activation_name)
 
         # Performance logging:
         # # Measuring time
@@ -435,7 +444,8 @@ if __name__ == '__main__':
                                             model_name = model_name,
                                             hidden_layer_size= hidden_layer_size,
                                             initializator=initializator_name,
-                                            optimizer = optimizer_name)
+                                            optimizer = optimizer_name,
+                                            activation = activation_name)
         
         # Debug logging:
         # print("Successes so far: ", sum_of_successes)
