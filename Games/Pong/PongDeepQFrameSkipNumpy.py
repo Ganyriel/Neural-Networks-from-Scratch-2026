@@ -456,9 +456,9 @@ if __name__ == '__main__':
     initializator_name = weight_initializations[0]
     
     # Choice of activation function
-    activation_functions = [ly.Relu, ly.Sigmoid, ly.Tanh, ly.LeakyRelu, ly.Elu]
+    activation_functions = [ly.Relu, ly.LeakyRelu, ly.Elu, ly.Selu, ly.Sigmoid,  ly.Sigmoid2, ly.Swish, ly.Tanh, ly.Atanh, ly.Sinusoid, ly.Cosinusoid, ly.Gaussian, ly.Softplus, ly.Identity, ly.Prelu]
     activation_name = activation_functions[0]
-    
+   
 
     number_of_experiments = 1 # How many NNs we train
     hidden_layer_size = 200 # default: 

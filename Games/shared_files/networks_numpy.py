@@ -68,6 +68,12 @@ def create_network(in_states, h1_nodes, out_actions, batch_size: int, model_name
             activation_function(), # Activation function
             Linear(h1_nodes, out_actions, batch_size, weight_initializor), # Linear layer with adam optimizer
         ],optimizer=optimizer, batch_size=batch_size)
+        
+    if(model_name == "one_layer"):
+        model = NeuralNetwork([
+            Flatten(), # Flattening Input
+            Linear(in_states, out_actions, batch_size, weight_initializor)  # Linear layer with adam optimizer
+        ],optimizer=optimizer, batch_size=batch_size)
 
     if(model_name == "triple_convolutional_model_pong"):
         # TODO Test 

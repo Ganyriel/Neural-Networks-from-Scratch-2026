@@ -46,8 +46,8 @@ class PongDQL():
         loss_list = []   
 
         # Initializing constants
-        num_states = 5 #560 # 5 # size of the preprocessed input (position of paddle, position of ball x2, velocity of ball x2)
-        num_actions = 3 # size of action space (stay, up, down) 
+        num_states = 5 #580 # 5 # size of the preprocessed input (position of paddle, position of ball x2, velocity of ball x2)
+        num_actions = 2 # size of action space (stay, up, down) 
 
         
         # Initializing changing variables
@@ -97,7 +97,7 @@ class PongDQL():
                 action =  0
 
                 # Execute action
-                new_state,reward,_,_,_ = env.step(action+1) # We map the actions 0-2 to 1-3
+                new_state,reward,_,_,_ = env.step(action+2) # We map the actions 0-2 to 1-3
 
                 # Keep track of the rewards collected per episode.
                 rewards_per_episode[i] += reward
@@ -113,7 +113,7 @@ class PongDQL():
             #     action =  0
 
             #     # Execute action
-            #     new_state,reward,_,_,_ = env.step(action+1) # We map the actions 0-2 to 1-3
+            #     new_state,reward,_,_,_ = env.step(action+2) # We map the actions 0-2 to 1-3
 
             #     # Keep track of the rewards collected per episode.
             #     rewards_per_episode[i] += reward
@@ -136,14 +136,14 @@ class PongDQL():
                 # Select action based on epsilon-greedy
                 if random.random() < epsilon:
                     # select random action from modified action space
-                    action =  random.randint(0, 2) 
+                    action =  random.randint(0, 1) 
                 else:
                     # select best action   
                     action = policy_dqn.forward(preprocessed_state).argmax().item()
                     
 
                 # Execute action
-                new_state,reward,terminated,truncated,_ = env.step(action+1) # We map the actions 0-2 to 1-3
+                new_state,reward,terminated,truncated,_ = env.step(action+2) # We map the actions 0-2 to 1-3
 
 
                 # Debug log
@@ -239,7 +239,7 @@ class PongDQL():
         
         # Plot the loss
         loss_list = cp.array(loss_list)
-        loss_list[loss_list > 1] = 1
+        loss_list[loss_list > 2] = 2
         plt.subplot(223)
         plt.plot(loss_list)
         plt.title("Loss per episode")
@@ -251,6 +251,9 @@ class PongDQL():
         
         # Save plots
         plt.savefig('pong_experimental_dql.png')
+
+        # Prints the average reward of the last 100 games
+        print("Average reward in the last 100 games: ", cp.sum(rewards_per_episode[-101:-1:])/100)
         
         
 
@@ -421,8 +424,8 @@ class PongDQL():
         # 160
         # 160
         # 160
-        # 40
-        # 40
+        # 50
+        # 50
         vector_paddle_pos = cp.zeros(160)
         vector_paddle_pos[paddle_pos] = 1
 
@@ -434,11 +437,11 @@ class PongDQL():
         if(ball_y != 200):
             vector_ball_y[ball_y] = 1
 
-        vector_ball_directed_velocity_x = cp.zeros(40)
-        vector_ball_directed_velocity_x[ball_directed_velocity_x+19] = 1
+        vector_ball_directed_velocity_x = cp.zeros(50)
+        vector_ball_directed_velocity_x[ball_directed_velocity_x+24] = 1
         
-        vector_ball_directed_velocity_y = cp.zeros(40)
-        vector_ball_directed_velocity_y[ball_directed_velocity_y+19] = 1
+        vector_ball_directed_velocity_y = cp.zeros(50)
+        vector_ball_directed_velocity_y[ball_directed_velocity_y+24] = 1
 
         encoded = cp.concatenate((vector_paddle_pos,vector_ball_x,vector_ball_y,vector_ball_directed_velocity_x,vector_ball_directed_velocity_y))
 
@@ -469,8 +472,8 @@ class PongDQL():
                         obs_type="grayscale")
         
         # Initializing constants
-        num_states = 5 #560 #5 # size of the preprocessed input
-        num_actions = 3 # up, down and stay
+        num_states = 5 #580 #5 # size of the preprocessed input
+        num_actions = 2 # up, down and stay
 
         
         # Initialize Neural Network
@@ -502,7 +505,7 @@ class PongDQL():
                 action =  0
             
                 # Execute action
-                new_state,reward,_,_,_ = env.step(action+1) # We map the actions 0-2 to 1-3
+                new_state,reward,_,_,_ = env.step(action+2) # We map the actions 0-2 to 1-3
             
                 rewards += reward
 
@@ -517,7 +520,7 @@ class PongDQL():
                 action =  0
             
                 # Execute action
-                new_state,reward,_,_,_ = env.step(action+1) # We map the actions 0-2 to 1-3
+                new_state,reward,_,_,_ = env.step(action+2) # We map the actions 0-2 to 1-3
             
                 # Update previous state memory
                 previous_state.append(state)
@@ -536,7 +539,8 @@ class PongDQL():
                 preprocessed_frame = self.state_to_dqn_input(state,previous_state[0])
 
                 # Debug log
-                # print("State: ", preprocessed_frame)
+                # if (random.random()<0.05):
+                #     print("State: ", preprocessed_frame)
 
                 # Select best action   
                 action = policy_dqn.forward(preprocessed_frame).argmax().item()
@@ -545,7 +549,7 @@ class PongDQL():
                 # print("Chosen action: ", action)
 
                 # Execute action
-                state,reward,terminated,truncated,_ = env.step(action+1) # We map the actions 0-2 to 1-3
+                state,reward,terminated,truncated,_ = env.step(action+2) # We map the actions 0-2 to 1-3
 
                 if(steps_truncation == -10):
                     truncated = True 
@@ -591,11 +595,11 @@ if __name__ == '__main__':
     initializator_name = weight_initializations[0]
 
     # Choice of activation function
-    activation_functions = [ly.Relu, ly.Sigmoid, ly.Tanh, ly.LeakyRelu, ly.Elu]
-    activation_name = activation_functions[3]
+    activation_functions = [ly.Relu, ly.LeakyRelu, ly.Elu, ly.Selu, ly.Sigmoid,  ly.Sigmoid2, ly.Swish, ly.Tanh, ly.Atanh, ly.Sinusoid, ly.Cosinusoid, ly.Gaussian, ly.Softplus, ly.Identity, ly.Prelu]
+    activation_name = activation_functions[1]
 
     hidden_layer_size = 200 # default: 200
-    epoch_number = 1_000 # default: 
+    epoch_number = 2_000 # default: 
 
     total_start = time.time()
 
@@ -615,7 +619,7 @@ if __name__ == '__main__':
             hidden_layer_size = hidden_layer_size,
             activation = activation_name
             )
-
+    
     # Testing 
     if(doTest == True):
         pong.test(test_run_number,

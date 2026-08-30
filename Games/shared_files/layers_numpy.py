@@ -431,7 +431,7 @@ class Relu:
     def is_trainable(self):
         return self.trainable
 
-
+# TODO CHECK IF CORRECT
 # ---------------------------------------------------------
 # Sigmoid activation
 # ---------------------------------------------------------
@@ -452,7 +452,36 @@ class Sigmoid:
         return output
 
     def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
-        grad_input = grad_output * (self.output * (1 - self.output))
+        grad_input = grad_output * cp.multiply(self.output, (1 - self.output))
+        return grad_input
+
+    def print_name(self):
+        print(self.name)
+
+    def is_trainable(self):
+        return self.trainable
+    
+# ---------------------------------------------------------
+# Sigmoid2 activation
+# ---------------------------------------------------------
+class Sigmoid2:
+    """Sigmoid2 activation function"""
+
+    def __init__(self) -> None:
+        super(Sigmoid2, self).__init__()
+        self.name = "Sigmoid2 Layer"
+        self.trainable = False
+        self.input = 0
+        self.output = 0
+
+    def forward(self, inp: cp.ndarray) -> cp.ndarray:
+        self.input = inp
+        output = self.input / (1 + cp.exp(-self.input))
+        self.output = output
+        return output
+
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        grad_input = grad_output*((self.input * cp.sinh(self.input))/(4*cp.cosh(self.input/2)**2)+1/2)
         return grad_input
 
     def print_name(self):
@@ -482,7 +511,6 @@ class Tanh:
         return output
 
     def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
-        # Computes the gradient of ReLU
         grad_input = grad_output*(1-self.output**2)
         return grad_input
 
@@ -515,7 +543,6 @@ class LeakyRelu:
         return output
 
     def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
-        # Computes the gradient of ReLU
         grad_input = grad_output.copy()
         grad_input[self.input <=0] *= self.alpha
         return grad_input
@@ -528,16 +555,16 @@ class LeakyRelu:
     def is_trainable(self):
         return self.trainable
 
-"""
+
 # TODO update and gradient calculation not implemented
 # ---------------------------------------------------------
 # Parametric ReLU activation
 # ---------------------------------------------------------
-class PRelu:
+class Prelu:
     #Parametric ReLU activation function
 
     def __init__(self) -> None:
-        super(PRelu, self).__init__()
+        super(Prelu, self).__init__()
         self.name = "PReLu Layer"
         self.trainable = True
         self.alpha = 0.25
@@ -552,13 +579,14 @@ class PRelu:
         return output
 
     def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
-        # Computes the gradient of ReLU
         grad_input = grad_output.copy()
         grad_input[self.input <=0] *= self.alpha
+        one_diff = cp.minimum(0,self.input)
+        self.grad_alpha = cp.sum(cp.sum(one_diff, axis=0))/one_diff.shape[0] 
         return grad_input
 
     def update(self, lr, difference) -> None:
-        self.alpha = self.alpha - lr * difference[0]
+        self.alpha -= lr * difference[0][0]
     
     def get_weights(self):
         # returns the alpha
@@ -575,8 +603,8 @@ class PRelu:
         return self.trainable
     
     def get_gradients(self):
-        return [self.grad_alpha,cp.zeros_like(self.grad_alpha)]
-"""
+        return [cp.array([self.grad_alpha]),cp.array([0])]
+
 
 
 # ---------------------------------------------------------
@@ -600,12 +628,262 @@ class Elu:
         return output
 
     def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
-        # Computes the gradient of ReLU
         grad_input = grad_output.copy()
         grad_input[self.input <=0] *= self.alpha*cp.exp(self.input[self.input <=0])
         return grad_input
+    
+    def print_name(self):
+        print(self.name)
+
+    def is_trainable(self):
+        return self.trainable
+    
+
+# ---------------------------------------------------------
+# Sinusoid activation
+# ---------------------------------------------------------
+class Sinusoid:
+    """Sinusoid activation function"""
+
+    def __init__(self) -> None:
+        super(Sinusoid, self).__init__()
+        self.name = "Sinusoid Layer"
+        self.trainable = False
+        self.input = 0
+        self.output = 0
+
+    def forward(self, input: cp.ndarray) -> cp.ndarray:
+        self.input = input
+        output = cp.sin(input)
+        self.output = output
+        return output
+
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        grad_input = grad_output*cp.cos(self.input)
+        return grad_input
 
     
+
+    def print_name(self):
+        print(self.name)
+
+    def is_trainable(self):
+        return self.trainable
+    
+# TODO CHECK IF WORKS   
+# ---------------------------------------------------------
+# Cosinusoid activation
+# ---------------------------------------------------------
+class Cosinusoid:
+    """Cosinusoid activation function"""
+
+    def __init__(self) -> None:
+        super(Cosinusoid, self).__init__()
+        self.name = "Cosinusoid Layer"
+        self.trainable = False
+        self.input = 0
+        self.output = 0
+
+    def forward(self, input: cp.ndarray) -> cp.ndarray:
+        self.input = input
+        output = cp.cos(input)
+        self.output = output
+        return output
+
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        grad_input = grad_output*(-cp.sin(self.input))
+        return grad_input
+
+    
+    def print_name(self):
+        print(self.name)
+
+    def is_trainable(self):
+        return self.trainable
+    
+    
+# TODO CHECK IF WORKS
+# ---------------------------------------------------------
+# Gaussian activation
+# ---------------------------------------------------------
+class Gaussian:
+    """Gaussian activation function"""
+
+    def __init__(self) -> None:
+        super(Gaussian, self).__init__()
+        self.name = "Gaussian Layer"
+        self.trainable = False
+        self.input = 0
+        self.output = 0
+
+    def forward(self, input: cp.ndarray) -> cp.ndarray:
+        self.input = input
+        output = cp.exp(-input**2)
+        self.output = output
+        return output
+
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        grad_input = grad_output*(-2)*cp.multiply(self.input,self.output) #AAA
+        return grad_input
+
+
+    def print_name(self):
+        print(self.name)
+
+    def is_trainable(self):
+        return self.trainable
+    
+
+
+# ---------------------------------------------------------
+# Softplus activation
+# ---------------------------------------------------------
+class Softplus:
+    """Softplus activation function"""
+
+    def __init__(self) -> None:
+        super(Softplus, self).__init__()
+        self.name = "Softplus Layer"
+        self.trainable = False
+        self.input = 0
+        self.output = 0
+
+    def forward(self, input: cp.ndarray) -> cp.ndarray:
+        self.input = input
+        output = cp.log(1+cp.exp(input))
+        self.output = output
+        return output
+
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        grad_input = grad_output*cp.log(1+cp.exp(-self.input))
+        return grad_input
+
+
+    def print_name(self):
+        print(self.name)
+
+    def is_trainable(self):
+        return self.trainable
+    
+# ---------------------------------------------------------
+# Scaled Exponential LU activation
+# ---------------------------------------------------------
+class Selu:
+    """Scaled Exponential LU activation function"""
+
+    def __init__(self) -> None:
+        super(Selu, self).__init__()
+        self.name = "SeLu Layer"
+        self.trainable = False
+        self.l = 1.0507
+        self.alpha = 1.67326
+        self.input = 0
+        self.output = 0
+
+    def forward(self, input: cp.ndarray) -> cp.ndarray:
+        self.input = input
+        output = self.l * (cp.maximum(input,0)+self.alpha*(cp.exp(cp.minimum(0,input))-1))
+        self.output = output
+        return output
+
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        grad_input = grad_output.copy()
+        grad_input[self.input <=0] *= (self.alpha*cp.exp(self.input[self.input <=0]))
+        grad_input *= self.l
+        return grad_input
+
+
+    def print_name(self):
+        print(self.name)
+
+    def is_trainable(self):
+        return self.trainable
+    
+
+# ---------------------------------------------------------
+# Arctanh activation
+# ---------------------------------------------------------
+class Atanh:
+    """Arctanh activation function"""
+
+    def __init__(self) -> None:
+        super(Atanh, self).__init__()
+        self.name = "Atanh Layer"
+        self.trainable = False
+        self.input = None
+        self.output = None
+
+    def forward(self, input: cp.ndarray) -> cp.ndarray:
+        self.input = input
+        output = cp.atanh(input)
+        self.output = output
+        return output
+
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        grad_input = grad_output/(self.input**2 + 1)
+        return grad_input
+
+    def print_name(self):
+        print(self.name)
+
+    def is_trainable(self):
+        return self.trainable
+    
+
+# ---------------------------------------------------------
+# Identity activation
+# ---------------------------------------------------------
+class Identity:
+    """Identity activation function"""
+
+    def __init__(self) -> None:
+        super(Identity, self).__init__()
+        self.name = "Identity Layer"
+        self.trainable = False
+        self.input = 0
+        self.output = 0
+
+    def forward(self, input: cp.ndarray) -> cp.ndarray:
+        self.input = input
+        output = self.input
+        self.output = output
+        return output
+
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        # Computes the gradient of ReLU
+        grad_input = grad_output.copy()
+        return grad_input
+
+    def print_name(self):
+        print(self.name)
+
+    def is_trainable(self):
+        return self.trainable
+
+# ---------------------------------------------------------
+# Swish activation
+# ---------------------------------------------------------
+class Swish:
+    """Swish activation function"""
+
+    def __init__(self) -> None:
+        super(Swish, self).__init__()
+        self.name = "Swish Layer"
+        self.trainable = False
+        self.beta = 1.702 # default: 1.702
+        self.input = None
+        self.output = None
+
+    def forward(self, input: cp.ndarray) -> cp.ndarray:
+        self.input = input
+        output = self.input / (1 + cp.exp(-self.beta*self.input))
+        self.output = output
+        return output
+
+    def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
+        beta_x = self.beta * self.input
+        grad_input = grad_output*((beta_x * cp.sinh(beta_x))/(4*cp.cosh(beta_x/2)**2)+1/2)
+        return grad_input
 
     def print_name(self):
         print(self.name)

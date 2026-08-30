@@ -327,6 +327,9 @@ class FrozenLakeDQL():
         # Debugging Logs: printing the q-values of the trained network
         # self.print_dqn(policy_dqn)
 
+        # Debug log for testing PRelu
+        # print("alpha: ", policy_dqn.get_weights()[1])
+
         # Returning whether the agent fulfilled their goal
         return succesful
 
@@ -382,8 +385,8 @@ if __name__ == '__main__':
     test_run_number = 3 # How often we let it show what it learned 
 
     # Choice of model
-    models = ["two_layers", "three_layers"] 
-    model_name = models[0]
+    models = ["one_layer", "two_layers", "three_layers"] 
+    model_name = models[1]
     hidden_layer_size = 16 # default: 16
 
     # Choice of optimizer
@@ -396,7 +399,7 @@ if __name__ == '__main__':
     initializator_name = weight_initializations[2]
 
     # Choice of activation function
-    activation_functions = [ly.Relu, ly.Sigmoid, ly.Tanh, ly.LeakyRelu, ly.Elu]
+    activation_functions = [ly.Relu, ly.LeakyRelu, ly.Elu, ly.Selu, ly.Sigmoid,  ly.Sigmoid2, ly.Swish, ly.Tanh, ly.Atanh, ly.Sinusoid, ly.Cosinusoid, ly.Gaussian, ly.Softplus, ly.Identity, ly.Prelu]
     activation_name = activation_functions[0]
 
     # Training parameters
