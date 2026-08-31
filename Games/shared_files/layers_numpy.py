@@ -13,7 +13,7 @@ class Linear:
     """
 
     def __init__(
-        self, in_features: int, out_features: int, batch_size: int, weight_initializor
+        self, in_features: int, out_features: int, batch_size: int
     ) -> None:
         super(Linear, self).__init__()
         self.name = "Linear Layer"
@@ -21,7 +21,8 @@ class Linear:
 
         self.batch_size = batch_size
         self.rng = cp.random.default_rng(seed=42)
-        self.weight, self.bias = weight_initializor(in_features, out_features)
+        self.weight = None
+        self.bias = None
         self.grad_weight = cp.zeros((in_features, out_features))
         self.grad_bias = cp.zeros(out_features)
         self.input = cp.zeros((batch_size, in_features))
@@ -49,6 +50,9 @@ class Linear:
     def update(self, lr, difference) -> None:
         self.weight = self.weight - lr * difference[0]
         self.bias = self.bias - lr * difference[1]
+        # Debug log for vanishing and exploding gradient. Maybe
+        # if (cp.max(cp.absolute(difference[0])) > 10 or cp.max(cp.absolute(difference[0])) < 0.001) or (cp.max(cp.absolute(difference[1])) > 10 or cp.max(cp.absolute(difference[1])) < 0.001):
+        #     print("Difference max: ", cp.max(cp.absolute(difference[0]), cp.max(cp.absolute(difference[1]))
 
     def get_weights(self):
         # returns the weights and bias
@@ -61,6 +65,12 @@ class Linear:
 
     def print_name(self):
         print(self.name)
+
+    def get_name(self):
+        return self.name
+    
+    def get_size(self):
+        return self.grad_weight.shape
 
     def is_trainable(self):
         return self.trainable
@@ -320,6 +330,9 @@ class Conv:
     def print_name(self):
         print(self.name)
 
+    def get_name(self):
+        return self.name
+
     def is_trainable(self):
         return self.trainable
 
@@ -556,7 +569,7 @@ class LeakyRelu:
         return self.trainable
 
 
-# TODO update and gradient calculation not implemented
+# TODO check if works
 # ---------------------------------------------------------
 # Parametric ReLU activation
 # ---------------------------------------------------------
@@ -599,6 +612,9 @@ class Prelu:
     def print_name(self):
         print(self.name)
     
+    def get_name(self):
+        return self.name
+
     def is_trainable(self):
         return self.trainable
     
@@ -670,7 +686,6 @@ class Sinusoid:
     def is_trainable(self):
         return self.trainable
     
-# TODO CHECK IF WORKS   
 # ---------------------------------------------------------
 # Cosinusoid activation
 # ---------------------------------------------------------
@@ -723,7 +738,7 @@ class Gaussian:
         return output
 
     def backward(self, grad_output: cp.ndarray) -> cp.ndarray:
-        grad_input = grad_output*(-2)*cp.multiply(self.input,self.output) #AAA
+        grad_input = grad_output*(-2)*cp.multiply(self.input,self.output) 
         return grad_input
 
 

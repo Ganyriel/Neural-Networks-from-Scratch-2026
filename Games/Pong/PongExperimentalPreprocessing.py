@@ -29,7 +29,7 @@ class PongDQL():
     discount_factor_g = 0.9         # discount rate of reward (gamma), default: 0.9  
     network_sync_rate = 50_000          # number of steps the agent takes before syncing the policy and target network, default: 
     replay_memory_size = 20_000       # size of replay memory, default:
-    mini_batch_size = 32        # size of the training data set sampled from the replay memory, default: 32
+    mini_batch_size = 128        # size of the training data set sampled from the replay memory, default: 32
     size_of_velocity_memory = 6 # for calculating the velocity and direction of the ball
     # TODO MAYBE SAVE ONLY POSITION OF BALL
 
@@ -166,12 +166,18 @@ class PongDQL():
                 # Debug log
                 # print(rewards_per_episode[i])
                 
+
                 # Save experience into memory
-                # if(preprocessed_state[2] == 0 and preprocessed_state[3] == 0):
-                #     if(random.random()<0.1):
-                #         memory.append((preprocessed_state, action, preprocessed_new_state, reward, terminated)) 
-                # else:
-                memory.append((preprocessed_state, action, preprocessed_new_state, reward, terminated)) 
+                if(preprocessed_state[3] == 0 and preprocessed_state[4] == 0):
+                    # If no ball, save only some transitions
+                    if(random.random()<0.2):
+                        memory.append((preprocessed_state, action, preprocessed_new_state, reward, terminated)) 
+                elif(preprocessed_state[3] <= 0):
+                    # If ball is flying left, save only some transitions
+                    if(random.random()<0.1):
+                        memory.append((preprocessed_state, action, preprocessed_new_state, reward, terminated)) 
+                else:
+                    memory.append((preprocessed_state, action, preprocessed_new_state, reward, terminated)) 
 
                 # Update previous state memory
                 previous_state.append(state)
@@ -346,7 +352,7 @@ class PongDQL():
             ball_pos = (200,200)
         else:
             ball_middle = int(cp.floor(num_ball/2))
-            ball_pos = (ball_pixels[0][ball_middle],ball_pixels[1][ball_middle])
+            ball_pos = (ball_pixels[1][ball_middle],ball_pixels[0][ball_middle])
 
         return (paddle_pos, ball_pos)
 
@@ -580,7 +586,7 @@ if __name__ == '__main__':
     
     render_training = None # set to 'human' to see the training on a gaming screen
     render_testing = None # set to 'human' to see the testing on a gaming screen
-    test_run_number = 10 # How often we let it show what it learned
+    test_run_number = 10 # How often we let the agent show what it learned
 
     # Choice of model
     models = ["two_layers", "three_layers"] 
@@ -591,15 +597,15 @@ if __name__ == '__main__':
     optimizer_name = optimizers[0]
 
     # Choice of weight initialization
-    weight_initializations = [ut.xavier_initialization, ut.xavier_initialization_uniform, ut.xavier_initialization_normal,ut.simple_initialization] 
-    initializator_name = weight_initializations[0]
+    weight_initializations = [ut.xavier_initialization, ut.old_xavier_initialization, ut.xavier_initialization_uniform, ut.xavier_initialization_normal, ut.simple_initialization, ut.kaiming_initialization] 
+    initializator_name = weight_initializations[-1]
 
     # Choice of activation function
     activation_functions = [ly.Relu, ly.LeakyRelu, ly.Elu, ly.Selu, ly.Sigmoid,  ly.Sigmoid2, ly.Swish, ly.Tanh, ly.Atanh, ly.Sinusoid, ly.Cosinusoid, ly.Gaussian, ly.Softplus, ly.Identity, ly.Prelu]
-    activation_name = activation_functions[1]
+    activation_name = activation_functions[-1]
 
-    hidden_layer_size = 200 # default: 200
-    epoch_number = 2_000 # default: 
+    hidden_layer_size = 100 # default: 200
+    epoch_number = 4_000 # default: 
 
     total_start = time.time()
 

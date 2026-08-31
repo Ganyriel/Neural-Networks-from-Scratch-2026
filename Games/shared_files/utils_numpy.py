@@ -28,7 +28,6 @@ class ReplayMemory():
     def __init__(self, maxlen):
         self.memory = deque([], maxlen=maxlen)
         
-    
     def append(self, transition):
         self.memory.append(transition)
 
@@ -44,9 +43,15 @@ class ReplayMemory():
 # ---------------------------------------------------------
 # Weight Initializations
 # ---------------------------------------------------------
+def xavier_initialization(in_features, out_features, in_states, out_actions):
+    k = cp.sqrt(1/(in_states)) 
+    rng = cp.random.default_rng(seed = 42) 
+    weight = rng.uniform(-k,k, size=(in_features, out_features))
+    bias = rng.uniform(-k,k, size=(out_features,))
 
+    return weight, bias
 
-def xavier_initialization(in_features, out_features):
+def old_xavier_initialization(in_features, out_features, in_states, out_actions):
     k = cp.sqrt(1/(in_features)) 
     rng = cp.random.default_rng(seed = 42) 
     weight = rng.uniform(-k,k, size=(in_features, out_features))
@@ -54,26 +59,35 @@ def xavier_initialization(in_features, out_features):
 
     return weight, bias
 
-def xavier_initialization_uniform(in_features, out_features):
-    k = cp.sqrt(6/(in_features+out_features)) 
+def xavier_initialization_uniform(in_features, out_features, in_states, out_actions):
+    k = cp.sqrt(6/(in_states+out_actions)) 
     rng = cp.random.default_rng(seed = 42) 
     weight = rng.uniform(-k,k, size=(in_features, out_features))
     bias = rng.uniform(-k,k, size=(out_features,))
 
     return weight, bias
 
-def xavier_initialization_normal(in_features, out_features):
-    k = cp.sqrt(2/(in_features+out_features)) 
+def xavier_initialization_normal(in_features, out_features, in_states, out_actions):
+    k = cp.sqrt(2/(in_states+out_actions)) 
     rng = cp.random.default_rng(seed = 42) 
     weight = rng.normal(0,k, size=(in_features, out_features))
     bias = rng.normal(0,k, size=(out_features,))
 
     return weight, bias
 
-def simple_initialization(in_features, out_features):
+def simple_initialization(in_features, out_features, in_states, out_actions):
     rng = cp.random.default_rng(seed = 42)
-    weight = rng.normal(size=(in_features, out_features)) * cp.sqrt(1.0 / in_features)
-    bias = rng.normal(size=(out_features,)) * cp.sqrt(1.0 / in_features)
+    k = cp.sqrt(1.0 / in_features)
+    weight = rng.normal(size=(in_features, out_features)) * k
+    bias = rng.normal(size=(out_features,)) * k
+
+    return weight, bias
+
+def kaiming_initialization(in_features, out_features, in_states, out_actions):
+    k = cp.sqrt(2/(in_features)) 
+    rng = cp.random.default_rng(seed = 42) 
+    weight = rng.normal(0,k, size=(in_features, out_features))
+    bias = rng.normal(0,k, size=(out_features,))
 
     return weight, bias
     
@@ -86,6 +100,7 @@ def simple_initialization(in_features, out_features):
 class Adam:
     def __init__(self, trainable_layers, batch_size):
 
+        self.name = "Adam"
         self.trainable_layers = trainable_layers
         self.num_trainable_layers = len(self.trainable_layers)
         self.batch_size = batch_size
@@ -145,11 +160,15 @@ class Adam:
             
 
         return self.lr, self.gradients
+    
+    def get_name(self):
+        return self.name
 
 
 class PrimitiveOptimizer:
     # possible augmentation: 1. constant learning rate at first and 2. learning rate reset
     def __init__(self, trainable_layers, batch_size):
+        self.name = "Primitive Optimizer"
         self.lr = 0.1 
         self.steps = 0
         self.learning_rate_history = []
@@ -172,3 +191,6 @@ class PrimitiveOptimizer:
 
     def learning_rate_history_get(self):
         return self.learning_rate_history
+    
+    def get_name(self):
+        return self.name

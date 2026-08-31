@@ -452,8 +452,8 @@ if __name__ == '__main__':
     optimizer_name = optimizers[0]
     
     # Choice of weight initialization (for linear layers only, Conv has its own initialization)
-    weight_initializations = [ut.xavier_initialization, ut.xavier_initialization_uniform, ut.xavier_initialization_normal,ut.simple_initialization] 
-    initializator_name = weight_initializations[0]
+    weight_initializations = [ut.xavier_initialization, ut.old_xavier_initialization, ut.xavier_initialization_uniform, ut.xavier_initialization_normal, ut.simple_initialization, ut.kaiming_initialization] 
+    initializator_name = weight_initializations[1]
     
     # Choice of activation function
     activation_functions = [ly.Relu, ly.LeakyRelu, ly.Elu, ly.Selu, ly.Sigmoid,  ly.Sigmoid2, ly.Swish, ly.Tanh, ly.Atanh, ly.Sinusoid, ly.Cosinusoid, ly.Gaussian, ly.Softplus, ly.Identity, ly.Prelu]
