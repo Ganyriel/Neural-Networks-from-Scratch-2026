@@ -207,17 +207,17 @@ class PongDQL():
 
         # Debug log: For plotting epsilon
         # Plot epsilon decay (Y-axis) vs episodes (X-axis)
-        # plt.subplot(222) # plot on a 2 row x 2 col grid, at cell 2
-        # plt.plot(epsilon_history)
-        # plt.title("Epsilon in each episode")
+        plt.subplot(222) # plot on a 2 row x 2 col grid, at cell 2
+        plt.plot(epsilon_history)
+        plt.title("Epsilon in each episode")
         
         # Plot average rewards (Y-axis) vs episodes (X-axis)
-        plt.subplot(222)
+        # plt.subplot(222)
         sum_rewards = cp.zeros(episodes)
         for x in range(episodes):
            sum_rewards[x] = cp.sum(rewards_per_episode[max(0, x-100):(x+1)])/((x+1)-max(0, x-100))
-        plt.plot(sum_rewards)
-        plt.title("Average reward")
+        # plt.plot(sum_rewards)
+        # plt.title("Average reward")
 
         # Plot the loss
         plt.subplot(223)
