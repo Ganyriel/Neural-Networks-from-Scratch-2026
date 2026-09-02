@@ -26,7 +26,7 @@ gym.register_envs(ale_py)
 # Pong Deep Q-Learning
 class PongDQL():
     # Hyperparameters (adjustable)
-    discount_factor_g = 0.9         # discount rate of reward (gamma), default: 0.9  
+    discount_factor_g = 0.95         # discount rate of reward (gamma), default: 0.9  
     network_sync_rate = 50_000          # number of steps the agent takes before syncing the policy and target network, default: 
     replay_memory_size = 20_000       # size of replay memory, default:
     mini_batch_size = 128        # size of the training data set sampled from the replay memory, default: 32
@@ -263,38 +263,36 @@ class PongDQL():
         
         # Plotting
         # Create new graph 
-        plt.figure(1)
+        fig, ax = plt.subplots(3, 2)
+        
+        # fig.subplots_adjust(left=0.1, right=0.9, bottom=0.05, top=0.95)
         
         # Plot rewards in every episode
-        plt.subplot(321) 
-        plt.plot(rewards_per_episode)
-        plt.title("Rewards per episode")
+        ax[0, 0].plot(rewards_per_episode)
+        ax[0, 0].set_title("Rewards per episode")
         
-        # Plot time it for each episode
-        plt.subplot(322)        
-        plt.plot(monitor_time)
-        plt.title("Episode time")
+        # Plot time it for each episode  
+        ax[0, 1].scatter(cp.arange(episodes)+1,monitor_time)
+        ax[0, 1].set_title("Episode time")
         
         # Plot the loss
         loss_list = cp.array(loss_list)
         loss_list[loss_list > 2] = 2
-        plt.subplot(323)
-        plt.plot(loss_list)
-        plt.title("Loss per episode")
+        ax[1, 0].plot(loss_list)
+        ax[1, 0].set_title("Loss per episode")
 
         # Plot epsilon decay (Y-axis) vs episodes (X-axis)
-        plt.subplot(324) 
-        plt.plot(epsilon_history)
-        plt.title("Epsilon in each episode")
+        ax[1, 1].plot(epsilon_history)
+        ax[1, 1].set_title("Epsilon in each episode")
 
 
         # Plot epsilon decay (Y-axis) vs episodes (X-axis)
-        plt.subplot(325) 
-        plt.plot(point_scored_per_episode)
-        plt.title("Points per episode")
+        ax[2, 0].plot(point_scored_per_episode)
+        ax[2, 0].set_title("Points per episode")
         
         # Save plots
-        plt.savefig('pong_experimental_dql.png')
+        fig.tight_layout(h_pad = 2, w_pad  = 2)
+        fig.savefig('pong_experimental_dql.png')
 
         # Prints the points scored of the last 100 games
         print("Average points scored in the last 50 games: ", cp.sum(point_scored_per_episode[-51:-1:])/50)
@@ -466,8 +464,32 @@ class PongDQL():
 
     def reward_scheduler(self, state, reward, action):
 
+        # reward for scoring a point
         if(reward == 1):
             reward = 5
+
+        # reward for paddle being close to the ball
+        paddle_pos, ball_pos = self.get_positions(state)
+        paddle_pos = cp.array([140,paddle_pos])
+        ball_pos = cp.array(ball_pos)
+        
+
+        
+        paddle_ball_distance = cp.linalg.norm(paddle_pos-ball_pos)
+        if (paddle_ball_distance == 0):
+            paddle_ball_distance = 0.5
+
+        # Debug log
+        # if random.random() < 0.01:
+        #     print(paddle_ball_distance)
+        #     plt.imshow(state, cmap="gray")
+        #     plt.colorbar()
+        #     plt.show()
+
+        if (paddle_ball_distance <= 20):
+            reward += 0.2/(paddle_ball_distance**2)
+
+        
 
         return reward
 
@@ -650,7 +672,7 @@ if __name__ == '__main__':
     activation_name = activation_functions[0]
 
     hidden_layer_size = 580 #580 # default: 580
-    epoch_number = 2_000 # default: 
+    epoch_number = 2_000 # default: 2_000?
 
     total_start = time.time()
 
