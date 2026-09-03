@@ -27,7 +27,7 @@ gym.register_envs(ale_py)
 class PongDQL():
     # Hyperparameters (adjustable)
     discount_factor_g = 0.9         # discount rate of reward (gamma), default: 0.9  
-    network_sync_rate = 40_000          # number of steps the agent takes before syncing the policy and target network, default: 
+    network_sync_rate = 50_000          # number of steps the agent takes before syncing the policy and target network, default: 
     replay_memory_size = 20_000       # size of replay memory, default:
     mini_batch_size = 128        # size of the training data set sampled from the replay memory, default: 32
     size_of_velocity_memory = 6 # for calculating the velocity and direction of the ball
@@ -87,7 +87,7 @@ class PongDQL():
         for i in tqdm.tqdm(range(episodes)):
             episode_time = time.time()
             state = env.reset()[0]  # Initialize to state 0
-            terminated = False      # True when game ends
+            terminated = False      # True when agent reaches goal
             truncated = False       # True when steps exceed limit
 
             # Track number of steps taken. Used for terminating early
@@ -135,7 +135,7 @@ class PongDQL():
 
 
 
-            # Agent plays until the game ends or they have taken a certain amount of actions (truncated).
+            # Agent plays until the game ends or they have taken 1_200 actions (truncated).
             while(not terminated and not truncated):
 
                 point_scored = 0
@@ -153,7 +153,7 @@ class PongDQL():
                     
 
                 # Execute action
-                new_state,reward,terminated,truncated,_ = env.step(action+2) # We map the actions 0-1 to 2-3
+                new_state,reward,terminated,truncated,_ = env.step(action+2) # We map the actions 0-2 to 1-3
 
                 if(reward != 1):
                     point_scored = reward
@@ -264,6 +264,8 @@ class PongDQL():
         # Plotting
         # Create new graph 
         fig, ax = plt.subplots(3, 2)
+        
+        # fig.subplots_adjust(left=0.1, right=0.9, bottom=0.05, top=0.95)
         
         # Plot rewards in every episode
         ax[0, 0].plot(rewards_per_episode)
