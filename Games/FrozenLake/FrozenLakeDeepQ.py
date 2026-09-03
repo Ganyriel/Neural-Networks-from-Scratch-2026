@@ -30,10 +30,11 @@ from run_logger import RunLogger
 # FrozenLake Deep Q-Learning
 class FrozenLakeDQL():
     # Hyperparameters (adjustable)
-    discount_factor_g = 0.9         # discount rate (gamma), default: 0.9  
+    discount_factor_g = 0.9         # discount rate (gamma),                                                        default: 0.9  
     network_sync_rate = 10          # number of steps the agent takes before syncing the policy and target network, default: 10
-    replay_memory_size = 1_000       # size of replay memory, default: 1_000
-    mini_batch_size = 32          # size of the training data set sampled from the replay memory, default: 32
+    replay_memory_size = 1_000      # size of replay memory,                                                        default: 1_000
+    mini_batch_size = 32            # size of the training data set sampled from the replay memory,                 default: 32
+    eval_interval = 10              # evaluation intervals for greedy evaluation for example,                       default: 10
     
     # Initializing number of states
     num_states = 0
@@ -54,6 +55,7 @@ class FrozenLakeDQL():
             "output_dir": getattr(self, "output_dir", "results"),
             "episodes": episodes,
         }
+        
         logger = RunLogger(config, output_dir=config.get("output_dir", "results"))
         
         # Creating environment
@@ -64,6 +66,10 @@ class FrozenLakeDQL():
             render_mode=render,
             reward_schedule=(1, 0.0, 0.0)  #default: 1, 0.0, 0.0
         )
+        
+        env.reset(seed=getattr(self, "seed", 0))         
+        env.action_space.seed(getattr(self, "seed", 0)) 
+        
         loss_list = []   
 
         # Initializing constants
@@ -134,8 +140,9 @@ class FrozenLakeDQL():
                 # Keep track of the rewards collected per episode.
                 rewards_per_episode[i] += reward
 
-            current_loss = loss_list[-1] if loss_list else 0.0
+            current_loss = loss_list[-1] if loss_list else float("nan")
             logger.log_episode(float(rewards_per_episode[i]), float(current_loss))
+        
 
             
             # Check if enough experience has been collected and if at least 1 reward has been collected
@@ -143,18 +150,10 @@ class FrozenLakeDQL():
                 mini_batch = memory.sample(self.mini_batch_size)
                 loss = self.optimize(mini_batch, policy_dqn, target_dqn)
                 loss_list.append(loss)        
-                
-                # later for evaluation
-                # eval_interval = getattr(self, "eval_interval", None)
-                # if eval_interval and i % eval_interval == 0:
-                #     eval_env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=False)
-                #     eval_reward = self.evaluate_greedy(policy_dqn, eval_env, num_eval_episodes=10)
-                #     logger.log_eval(i, eval_reward)
-                #     eval_env.close()    
+   
 
                 # Decay epsilon
                 epsilon = max(epsilon - 1 / episodes, 0.00) # possible augmentation: set a minimum epsilon (i.e. change to 0.1)
-
                 epsilon_history.append(epsilon)
 
                 # Copy policy network to target network after a certain number of steps
@@ -162,7 +161,18 @@ class FrozenLakeDQL():
                     target_dqn.set_weights(policy_dqn.get_weights())
                     step_count=0
                     
-
+            # logging after optimize, so the loss belongs to this episode
+            current_loss = loss_list[-1] if loss_list else 0.0
+            logger.log_episode(float(rewards_per_episode[i]), float(current_loss))
+            
+            # greedy evaluation
+            eval_interval = getattr(self, "eval_interval", None)
+            if eval_interval and i % eval_interval == 0:
+                eval_env = gym.make('FrozenLake-v1', map_name="4x4", is_slippery=is_slippery)
+                eval_reward = self.evaluate_greedy(policy_dqn, eval_env, num_eval_episodes=10)
+                logger.log_eval(i, eval_reward)
+                eval_env.close() 
+            
         # Close environment
         env.close()
         
@@ -422,6 +432,15 @@ if __name__ == '__main__':
 
         # Initialize training class
         frozen_lake = FrozenLakeDQL()
+        
+        # give each experiment a distinct seed and set the output dir
+        frozen_lake.seed = int(i)
+        frozen_lake.output_dir = "results"
+
+        # seed the RNGs for reproducibility
+        random.seed(frozen_lake.seed)
+        np.random.seed(frozen_lake.seed)
+
         
         # Training 
         if(testing_only == False):
