@@ -12,8 +12,12 @@ import sys
 # setting path
 sys.path.append('../shared_files')
 
-from utils_numpy import compute_loss_mse, compute_gradient, ReplayMemory, Adam, PrimitiveOptimizer, xavier_initialization, simple_initialization
+# file imports
+import utils_numpy as ut 
+import layers_numpy as ly
 from networks_numpy import create_network
+from run_logger import RunLogger
+
 
 
 # BlackJack Deep Q-Learning
@@ -28,7 +32,7 @@ class BlackJackDQL():
     num_states = 0
 
     # Train the BlackJack environment
-    def train(self, episodes, render = None, model_name = "three_layers", optimizer = Adam, initializator = xavier_initialization, hidden_layer_size = 16):
+    def train(self, episodes, render = None, model_name = "three_layers", optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Relu, hidden_layer_size = 16):
 
         # Create BlackJack instance
 
@@ -51,12 +55,12 @@ class BlackJackDQL():
         epsilon = 1 # 1 = 100% random actions
 
         # Initializing Replay Memory
-        memory = ReplayMemory(self.replay_memory_size)
+        memory = ut.ReplayMemory(self.replay_memory_size)
 
         # Create policy and target network
-        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer)        
-        target_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer)        
-
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, activation_function = activation, optimizer = optimizer)        
+        target_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, activation_function = activation, optimizer = optimizer)        
+        
         # Print model architecture
         policy_dqn.print_name()
         
@@ -138,34 +142,35 @@ class BlackJackDQL():
         
 
         # Create new graph 
-        plt.figure(1)
-        
+        fig, ax = plt.subplots(2, 2)
+    
         # Plot rewards in every episode
-        plt.subplot(221) 
-        plt.plot(rewards_per_episode)
-        plt.title("Rewards per episode")
-
-        # Debug log: For plotting epsilon
-        # Plot epsilon decay (Y-axis) vs episodes (X-axis)
-        # plt.subplot(222) # plot on a 2 row x 2 col grid, at cell 2
-        # plt.plot(epsilon_history)
-        # plt.title("Epsilon in each episode")
-        
-        # Plot average rewards (Y-axis) vs episodes (X-axis)
-        plt.subplot(222)
+        ax[0, 0].plot(rewards_per_episode)
+        ax[0, 0].set_title("Rewards per episode")
+    
+        # Plot average reward for the last 100 episodes
         sum_rewards = np.zeros(episodes)
         for x in range(episodes):
-           sum_rewards[x] = np.sum(rewards_per_episode[max(0, x-100):(x+1)])/((x+1)-max(0, x-100))
-        plt.plot(sum_rewards)
-        plt.title("Average reward")
+            sum_rewards[x] = np.sum(rewards_per_episode[max(0, x-100):(x+1)])/((x+1)-max(0, x-100))
+        ax[0, 1].plot(sum_rewards)
+        ax[0, 1].set_title("Average reward for the last 100 episodes")
 
         # Plot the loss
-        plt.subplot(223)
-        plt.plot(loss_list)
-        plt.title("Loss per episode")
-
+        loss_list = np.array(loss_list)
+        loss_list[loss_list > 2] = 2
+        ax[1, 0].plot(loss_list)
+        ax[1, 0].set_title("Loss per episode")
+    
+        # Plot epsilon decay (Y-axis) vs episodes (X-axis)
+        ax[1, 1].plot(epsilon_history)
+        ax[1, 1].set_title("Epsilon in each episode")
+    
+        # Formatting
+        fig.tight_layout(h_pad = 2, w_pad  = 2)
+   
         # Save plots
         plt.savefig('black_jack_dql.png')
+
 
     # Optimize policy network
     def optimize(self, mini_batch, policy_dqn, target_dqn):
@@ -199,10 +204,10 @@ class BlackJackDQL():
             target_q_list.append(target_q)
                 
         # Compute loss for the whole minibatch
-        loss = compute_loss_mse(np.concatenate(target_q_list), np.concatenate(current_q_list))
+        loss = ut.compute_loss_mse(np.concatenate(target_q_list), np.concatenate(current_q_list))
         
         # Optimize the model 
-        gradient = compute_gradient(np.concatenate(target_q_list), np.concatenate(current_q_list))
+        gradient = ut.compute_gradient(np.concatenate(target_q_list), np.concatenate(current_q_list))
         
         # To save input in Neural Network
         inp = [np.array(self.state_to_dqn_input(state, num_states)) for state, _, _, _, _ in mini_batch]
@@ -223,13 +228,9 @@ class BlackJackDQL():
     #     '''
         
     #     input_tensor = np.zeros(num_states)
-
-
     #     input_tensor[(state[0]-1)+32*(state[1]-1)+352*state[2]] = 1
-        
     #     if(np.sum(input_tensor) != 1):
     #         raise ValueError("Method state_to_dqn_input brocken!")
-       
     #     return input_tensor
    
 
@@ -253,7 +254,7 @@ class BlackJackDQL():
         return input_tensor
 
     # Run the BlackJack environment with the learned policy
-    def test(self, episodes, render = None, model_name = "three_layers", optimizer = Adam, initializator = xavier_initialization, hidden_layer_size = 16):
+    def test(self, episodes, render = None, model_name = "three_layers",  optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Relu, hidden_layer_size = 16):
         succesful = 0
         failure = 0
 
@@ -268,8 +269,8 @@ class BlackJackDQL():
         num_actions = env.action_space.n
 
         # Initialize Neural Network
-        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer)        
-        
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer, activation_function = activation)        
+         
 
         # Loading the model
         with open('policy_dqn.pkl', 'rb') as file:
@@ -298,8 +299,6 @@ class BlackJackDQL():
                 failure += 1
 
         
-           
-
         # Closing the environment
         env.close()
 
@@ -313,34 +312,41 @@ if __name__ == '__main__':
     testing_only = False # Set to 'True' to only load and test newest model
     render_training = None # set to 'human' to see the training on a gaming screen
     render_testing = None # set to 'human' to see the testing on a gaming screen
-    test_run_number = 10_000 # How often we let it show what it learned, default: 1_000
+    test_run_number = 1_000 # How often we let it show what it learned, default: 1_000
 
     # Choice of model
-    models = ["two_layers", "three_layers"] 
+    models = ["one_layer", "two_layers", "three_layers"] 
     model_name = models[1]
-    hidden_layer_size = 16 # default: 16
+    hidden_layer_size = 10 # default: 16
 
     # Choice of optimizer
-    optimizers = [Adam, PrimitiveOptimizer] 
+    optimizers = [ut.Adam, ut.PrimitiveOptimizer] 
     optimizer_name = optimizers[0]
     
-    
     # Choice of weight initialization
-    weight_initializations = [xavier_initialization, simple_initialization] 
+    weight_initializations = [ut.xavier_initialization, ut.old_xavier_initialization, ut.xavier_initialization_uniform, ut.xavier_initialization_normal, ut.simple_initialization, ut.kaiming_initialization] 
     initializator_name = weight_initializations[0]
+    
+    # Choice of activation function
+    activation_functions = [ly.Relu, ly.LeakyRelu, ly.Elu, ly.Selu, ly.Sigmoid,  ly.Sigmoid2, ly.Swish, ly.Tanh, ly.Atanh, ly.Sinusoid, ly.Cosinusoid, ly.Gaussian, ly.Softplus, ly.Identity, ly.Prelu]
+    activation_name = activation_functions[0]
 
-    number_of_experiments = 10 # How many NNs we train
-    epoch_number = 2_000 # default: 1_000 
+    # Training parameters
+    number_of_experiments = 3 # How many NNs we train
+    epoch_number = 2_000 # default: 2_000 
 
     total_start = time.time()
 
 
+    # Logging parameters
     sum_of_successes = 0
     sum_of_losses = 0
     
 
     for i in np.arange(number_of_experiments)+1:
-        print("Experiment number: ", i)
+        print("")
+        print("_________________________________________________________________")
+        print("Experiment number: ", i, "/", number_of_experiments)
 
         # Performance logging:
         # start = time.time()
@@ -353,10 +359,11 @@ if __name__ == '__main__':
             black_jack.train(
                 epoch_number, 
                 render = render_training, 
-                model_name = model_name, 
+                model_name = model_name,
                 hidden_layer_size = hidden_layer_size,
                 initializator=initializator_name,
-                optimizer = optimizer_name
+                optimizer = optimizer_name,
+                activation = activation_name
                 )
 
         # Performance logging:
@@ -368,9 +375,10 @@ if __name__ == '__main__':
         proportion_of_successes, proportion_of_losses = black_jack.test(test_run_number,
                                             render = render_testing, 
                                             model_name = model_name,
-                                            hidden_layer_size= hidden_layer_size,
+                                            hidden_layer_size = hidden_layer_size,
                                             initializator=initializator_name,
                                             optimizer = optimizer_name,
+                                            activation = activation_name
                                             ) 
         
         proportion_of_successes = proportion_of_successes/ test_run_number

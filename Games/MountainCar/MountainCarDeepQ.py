@@ -12,8 +12,12 @@ import sys
 # setting path
 sys.path.append('../shared_files')
 
-from utils_numpy import compute_loss_mse, compute_gradient, ReplayMemory
+# file imports
+import utils_numpy as ut 
+import layers_numpy as ly
 from networks_numpy import create_network
+from run_logger import RunLogger
+
 
 
 # MountainCar Deep Q-Learning
@@ -33,7 +37,7 @@ class MountainCarDQL():
 
 
     # Train the MountainCar environment
-    def train(self, episodes, render = None, model_name = "three_layers", hidden_layer_size = 16):
+    def train(self, episodes, render = None, model_name = "three_layers", optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Relu, hidden_layer_size = 16):
 
         # Create MountainCar instance
 
@@ -62,12 +66,12 @@ class MountainCarDQL():
 
 
         # Initializing Replay Memory
-        memory = ReplayMemory(self.replay_memory_size)
+        memory = ut.ReplayMemory(self.replay_memory_size)
         
         # Create policy and target network
-        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name)        
-        target_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name)        
-
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, activation_function = activation, optimizer = optimizer)        
+        target_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, activation_function = activation, optimizer = optimizer)        
+        
         # Print model architecture
         policy_dqn.print_name()
         
@@ -178,34 +182,35 @@ class MountainCarDQL():
 
 
         # Create new graph 
-        plt.figure(1)
+        fig, ax = plt.subplots(2, 2)
         
         # Plot rewards in every episode
-        plt.subplot(221) 
-        plt.plot(rewards_per_episode)
-        plt.title("Rewards per episode")
-
-        # Debug log: For plotting epsilon
-        # Plot epsilon decay (Y-axis) vs episodes (X-axis)
-        # plt.subplot(222) # plot on a 2 row x 2 col grid, at cell 2
-        # plt.plot(epsilon_history)
-        # plt.title("Epsilon in each episode")
+        ax[0, 0].plot(rewards_per_episode)
+        ax[0, 0].set_title("Rewards per episode")
         
-        # Plot average rewards (Y-axis) vs episodes (X-axis)
-        plt.subplot(222)
+        # Plot average reward for the last 100 episodes
         sum_rewards = np.zeros(episodes)
         for x in range(episodes):
-           sum_rewards[x] = np.sum(rewards_per_episode[max(0, x-100):(x+1)])/((x+1)-max(0, x-100))
-        plt.plot(sum_rewards)
-        plt.title("Average reward")
-
+            sum_rewards[x] = np.sum(rewards_per_episode[max(0, x-100):(x+1)])/((x+1)-max(0, x-100))
+        ax[0, 1].plot(sum_rewards)
+        ax[0, 1].set_title("Average reward for the last 100 episodes")
+        
         # Plot the loss
-        plt.subplot(223)
-        plt.plot(loss_list)
-        plt.title("Loss per episode")
+        loss_list = np.array(loss_list)
+        loss_list[loss_list > 2] = 2
+        ax[1, 0].plot(loss_list)
+        ax[1, 0].set_title("Loss per episode")
+        
+        # Plot epsilon decay (Y-axis) vs episodes (X-axis)
+        ax[1, 1].plot(epsilon_history)
+        ax[1, 1].set_title("Epsilon in each episode")
+        
+        # Formatting
+        fig.tight_layout(h_pad = 2, w_pad  = 2)
 
         # Save plots
         plt.savefig('mountaincar_dql.png')
+
 
     def reward_scheduler(self, state, action, new_state,reward,terminated,truncated):
         #[-0.6, -0.4]
@@ -268,10 +273,10 @@ class MountainCarDQL():
             target_q_list.append(target_q)
                 
         # Compute loss for the whole minibatch
-        loss = compute_loss_mse(np.concatenate(target_q_list), np.concatenate(current_q_list))
+        loss = ut.compute_loss_mse(np.concatenate(target_q_list), np.concatenate(current_q_list))
         
         # Optimize the model 
-        gradient = compute_gradient(np.concatenate(target_q_list), np.concatenate(current_q_list))
+        gradient = ut.compute_gradient(np.concatenate(target_q_list), np.concatenate(current_q_list))
         
         # To save input in Neural Network
         inp = [np.array(self.state_to_dqn_input(state)) for state, _, _, _, _ in mini_batch]
@@ -284,15 +289,15 @@ class MountainCarDQL():
         return loss
         
    
-    # TODO not compatible with cupy
     def state_to_dqn_input(self, state):
+        # Finds the nearest values to round position and velocity to
         state_p = np.digitize(state[0], self.pos_space)
         state_v = np.digitize(state[1], self.vel_space)
         
         return np.array([state_p, state_v])
 
     # Run the MountainCar environment with the learned policy
-    def test(self, episodes, render = None, model_name = "three_layers", hidden_layer_size = 16):
+    def test(self, episodes, render = None, model_name = "three_layers",  optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Relu, hidden_layer_size = 16):
         succesful = 0
 
         # Create MountainCar instance
@@ -306,8 +311,8 @@ class MountainCarDQL():
         self.vel_space = np.linspace(env.observation_space.low[1], env.observation_space.high[1], self.num_divisions)    # Between -0.07 and 0.07
 
         # Initialize Neural Network
-        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name)        
-         
+        policy_dqn = create_network(in_states=num_states, h1_nodes=hidden_layer_size, out_actions=num_actions, batch_size = self.mini_batch_size, model_name=model_name, weight_initializor = initializator, optimizer = optimizer, activation_function = activation)        
+          
 
         # Loading the model
         with open("mountaincar_dql.pkl", 'rb') as file:
@@ -318,8 +323,8 @@ class MountainCarDQL():
         # Testing
         for _ in range(episodes):
             state = env.reset()[0]  # Initialize to state 0
-            terminated = False      # True when agent falls in hole or reached goal
-            truncated = False       # True when agent takes more than 200 actions            
+            terminated = False      # True when agent reaches goal
+            truncated = False       # True when steps exceed limit       
 
             # Agent navigates map until it falls into a hole (terminated), reaches goal (terminated), or has taken 200 actions (truncated).
             while(not terminated and not truncated):  
@@ -347,20 +352,37 @@ if __name__ == '__main__':
     render_testing = None # set to 'human' to see the testing on a gaming screen
 
     # Choice of model
-    models = ["two_layers", "three_layers"] 
-    model_name = models[1]
-
-
-    number_of_experiments = 1 # How many NNs we train
+    models = ["one_layer", "two_layers", "three_layers"] 
+    model_name = models[2]
     hidden_layer_size = 10 # default: 20
+    
+    # Choice of optimizer
+    optimizers = [ut.Adam, ut.PrimitiveOptimizer] 
+    optimizer_name = optimizers[0]
+    
+    # Choice of weight initialization
+    weight_initializations = [ut.xavier_initialization, ut.old_xavier_initialization, ut.xavier_initialization_uniform, ut.xavier_initialization_normal, ut.simple_initialization, ut.kaiming_initialization] 
+    initializator_name = weight_initializations[1]
+    
+    # Choice of activation function
+    activation_functions = [ly.Relu, ly.LeakyRelu, ly.Elu, ly.Selu, ly.Sigmoid,  ly.Sigmoid2, ly.Swish, ly.Tanh, ly.Atanh, ly.Sinusoid, ly.Cosinusoid, ly.Gaussian, ly.Softplus, ly.Identity, ly.Prelu]
+    activation_name = activation_functions[0]
+
+    # Training parameters
+    number_of_experiments = 1 # How many NNs we train
     epoch_number = 2_000 # default: 1_000 
 
     total_start = time.time()
 
+    
+        
+
     sum_of_successes = 0
     
     for i in np.arange(number_of_experiments)+1:
-        print("Experiment number: ", i)
+        print("")
+        print("_________________________________________________________________")
+        print("Experiment number: ", i, "/", number_of_experiments)
 
         # Performance logging:
         # start = time.time()
@@ -374,7 +396,10 @@ if __name__ == '__main__':
                 epoch_number, 
                 render = render_training, 
                 model_name = model_name,
-                hidden_layer_size = hidden_layer_size
+                hidden_layer_size = hidden_layer_size,
+                initializator=initializator_name,
+                optimizer = optimizer_name,
+                activation = activation_name
                 )
 
         # Performance logging:
@@ -386,7 +411,10 @@ if __name__ == '__main__':
         proportion_of_successes = mountain_car.test(test_run_number,
                                             render = render_testing, 
                                             model_name = model_name,
-                                            hidden_layer_size= hidden_layer_size
+                                            hidden_layer_size = hidden_layer_size,
+                                            initializator=initializator_name,
+                                            optimizer = optimizer_name,
+                                            activation = activation_name
                                             ) 
         
         proportion_of_successes = proportion_of_successes/ test_run_number
@@ -396,10 +424,7 @@ if __name__ == '__main__':
         print(" ")
 
         sum_of_successes += proportion_of_successes
-        
-        
 
-    
     print("Total proportion of successes: ", sum_of_successes/number_of_experiments)
     
     
