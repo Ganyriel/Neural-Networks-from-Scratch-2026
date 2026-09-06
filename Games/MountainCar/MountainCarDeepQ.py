@@ -161,9 +161,6 @@ class MountainCarDQL():
             if(terminated == True):
                 terminated_sum += 1
                 
-                # Debug/training log
-                # print("reward: ", reward)
-                # print(f"reward at step {i}", rewards_per_episode[i])
             
             # Keep track of highest reward
             if rewards_per_episode[i]>best_rewards:
@@ -281,7 +278,6 @@ class MountainCarDQL():
 
     # Optimize policy network
     def optimize(self, mini_batch, policy_dqn, target_dqn):
-        # print("Optimizing")
         current_q_list = []
         target_q_list = []
 
@@ -432,8 +428,6 @@ if __name__ == '__main__':
         print("_________________________________________________________________")
         print("Experiment number: ", i, "/", number_of_experiments)
 
-        # Performance logging:
-        # start = time.time()
 
         # Initialize training class
         mountain_car = MountainCarDQL()
@@ -459,10 +453,6 @@ if __name__ == '__main__':
                 activation = activation_name
                 )
 
-        # Performance logging:
-        # # Measuring time
-        # end = time.time()
-        # print("Training took: ", end - start)
 
         # Testing and keeping track of successes
         proportion_of_successes = mountain_car.test(test_run_number,
