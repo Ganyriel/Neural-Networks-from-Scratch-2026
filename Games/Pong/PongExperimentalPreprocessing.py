@@ -19,20 +19,17 @@ import utils_numpy as ut
 from networks_numpy import create_network
 
 
-
 gym.register_envs(ale_py)
 
 
 # Pong Deep Q-Learning
 class PongDQL():
-    # Hyperparameters (adjustable)
+    # Hyperparameters
     discount_factor_g = 0.9         # discount rate of reward (gamma), default: 0.9  
     network_sync_rate = 40_000          # number of steps the agent takes before syncing the policy and target network, default: 
     replay_memory_size = 20_000       # size of replay memory, default:
     mini_batch_size = 128        # size of the training data set sampled from the replay memory, default: 32
     size_of_velocity_memory = 6 # for calculating the velocity and direction of the ball
-    # TODO MAYBE SAVE ONLY POSITION OF BALL
-
 
     # Train the Pong environment
     def train(self, episodes, render = None, model_name = "three_layers",  optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Relu, hidden_layer_size = 16):
@@ -42,14 +39,11 @@ class PongDQL():
                         render_mode=render, 
                         obs_type="grayscale")
         
-        
-        loss_list = []   
-
+    
         # Initializing constants
         num_states = 580 #580 # 5 # size of the preprocessed input (position of paddle, position of ball x2, velocity of ball x2)
-        num_actions = 2 # size of action space (stay, up, down) 
+        num_actions = 2 # size of action space (up and down)
 
-        
         # Initializing changing variables
         epsilon = 1 # 1 = 100% random actions
 
@@ -75,13 +69,16 @@ class PongDQL():
         # List to keep track of epsilon decay
         epsilon_history = []
 
-        # List to monitor time of an action
+        # List to monitor time of an episode
         monitor_time = []
+
+        # List to keep track of loss
+        loss_list = []   
 
         # Track number of steps taken. Used for syncing policy => target network.
         network_step_count=0
 
-        training_start = False
+        # Keep track of best reward
         best_rewards = -100
 
         for i in tqdm.tqdm(range(episodes)):
@@ -112,85 +109,55 @@ class PongDQL():
                 # Move to the next state
                 state = new_state
 
-            # while (len(cp.nonzero(state[35:195] == 236)[0]) == 0):
-            #     # Until the ball appears, we stand still
-            #     action =  0
-
-            #     # Execute action
-            #     new_state,reward,_,_,_ = env.step(action+2) # We map the actions 0-2 to 1-3
-
-            #     # Keep track of the rewards collected per episode.
-            #     rewards_per_episode[i] += reward
-
-            #     # Update previous state memory
-            #     previous_state.append(state)
-
-            #     # Move to the next state
-            #     state = new_state
-
-
+            # Preprocess state
             not_encoded_new_state = self.state_to_data(new_state, previous_state[0])
             preprocessed_new_state = self.encode_state(*not_encoded_new_state)
-            #preprocessed_new_state = self.state_to_data(new_state, previous_state[0])
-
-
 
             # Agent plays until the game ends or they have taken a certain amount of actions (truncated).
             while(not terminated and not truncated):
 
+                # Keep track of scored points
                 point_scored = 0
 
+
+                # Preprocess state
                 not_encoded_state = not_encoded_new_state
                 preprocessed_state = preprocessed_new_state
 
                 # Select action based on epsilon-greedy
                 if random.random() < epsilon:
-                    # select random action from modified action space
+                    # Exploration
                     action =  random.randint(0, 1) 
                 else:
-                    # select best action   
+                    # Exploitation
                     action = policy_dqn.forward(preprocessed_state).argmax().item()
                     
-
                 # Execute action
                 new_state,reward,terminated,truncated,_ = env.step(action+2) # We map the actions 0-1 to 2-3
 
-                if(reward != 1):
+
+                # Keep track if point was scored TODO!!
+                if(reward != 0):
                     point_scored = reward
 
+
+                # Calculate custom reward
                 reward = self.reward_scheduler(state = state, reward=reward, action=action)
 
 
-                # Debug log
-                # if reward != 0:
-                #     print("reward: ", reward)
 
                 # Preprocessing new state
                 not_encoded_new_state = self.state_to_data(new_state, previous_state[0])
-                # preprocessed_new_state = not_encoded_new_state
                 preprocessed_new_state = self.encode_state(*not_encoded_new_state)
 
-                # Keeping track whether we gained a positive reward
-                # if(0 < reward):
-                training_start = True
-
-                # Debug log
-                # print("Action taken: ", action)
-                      
                 # Keep track of the rewards collected per episode.
                 rewards_per_episode[i] += reward
 
                 # Keep track of the points collected per episode.
                 point_scored_per_episode[i] += point_scored
 
-                # Debug log
-                # print(rewards_per_episode[i])
-                
 
-                # Save experience into memory
-                #st = time.time()
-                
-                #print(time.time()-st)
+                # Save experience into memory                
                 if(not_encoded_state[3] == 0 and not_encoded_state[4] == 0):
                     # If no ball, save only some transitions
                     if(random.random()<0.2):
@@ -201,7 +168,6 @@ class PongDQL():
                         memory.append((preprocessed_state, action, preprocessed_new_state, reward, terminated, point_scored)) 
                 else:
                     memory.append((preprocessed_state, action, preprocessed_new_state, reward, terminated, point_scored)) 
-                
 
                 # Update previous state memory
                 previous_state.append(state)
@@ -209,7 +175,8 @@ class PongDQL():
                 # Move to the next state
                 state = new_state
 
-                if(steps_truncation == 1_200): # TODO add if reward too little
+                # Truncate if too many steps taken
+                if(steps_truncation == 1_200): 
                     truncated = True 
                     steps_truncation = 0
                 
@@ -217,26 +184,17 @@ class PongDQL():
                 network_step_count+=1
                 steps_truncation += 1
 
-            
             # Keep track of highest reward
             if rewards_per_episode[i]>best_rewards:
                 best_rewards = rewards_per_episode[i]
-
-                # Debug log
-                #print(f'Best rewards so far: {best_rewards}')
-                
-            # Check if enough experience has been collected (and if at least 1 reward has been collected)
-            if (len(memory) > self.mini_batch_size and training_start == True) :
+ 
+            # Check if enough experience has been collected
+            if (len(memory) > self.mini_batch_size) :
                 mini_batch = memory.sample(self.mini_batch_size)
                 loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn))        
 
                 # Decay epsilon
-                # epsilon_end = 0.001
                 epsilon = max(epsilon - 1/episodes, 0.00) # possible augmentation: set a minimum epsilon (i.e. change to 0.1)
-                # epsilon = max(
-                #     epsilon_end,
-                #     epsilon*0.999
-                # )
 
                 # Keep track of epsilon for plotting
                 epsilon_history.append(epsilon)
@@ -246,15 +204,14 @@ class PongDQL():
                     target_dqn.set_weights(policy_dqn.get_weights())
                     network_step_count=0
 
+            # Calculate time for episode
             monitor_time.append(time.time() - episode_time)    
-
-
-            # print("Rewards in this episode: ", rewards_per_episode[i])
 
         # Saving the model
         with open("pong_experimental_dql.pkl", 'wb') as file:
             pickle.dump(policy_dqn.get_weights(), file)
-            
+
+        # Print best reward
         print("Best reward: ", best_rewards)
         
         # Close environment
@@ -294,8 +251,6 @@ class PongDQL():
 
         # Prints the points scored of the last 100 games
         print("Average points scored in the last 50 games: ", cp.sum(point_scored_per_episode[-51:-1:])/50)
-        
-        
 
     # Optimize policy network
     def optimize(self, mini_batch, policy_dqn, target_dqn):
@@ -327,26 +282,23 @@ class PongDQL():
         # Compute loss for the whole minibatch
         loss = ut.compute_loss_mse(cp.concatenate(target_q_list), cp.concatenate(current_q_list))
 
-        # Debug log
-        # print("Loss: ", loss)
-
         # Optimize the model 
         gradient = ut.compute_gradient(cp.concatenate(target_q_list), cp.concatenate(current_q_list))
         
-        # To save input in Neural Network
-        inp = [preprocessed_state for preprocessed_state, _, _, _, _, _ in mini_batch]
+        # Putting input into a minibatch
+        inp = [cp.array(state) for state, _, _, _, _ in mini_batch]        
         inp = cp.stack(inp)
-        # st = time.time()
-        policy_dqn.forward(inp) 
-        # print("Forward pass time: ", time.time()-st)
-
-        # st = time.time()
+        
+        # Peforming forward pass
+        policy_dqn.forward(inp)
+        
+        # Performing backward pass 
         policy_dqn.backward(gradient)
-        # print("Backward pass time: ", time.time()-st)
-
-        # st = time.time()
+        
+        # Performing weight and bias update
         policy_dqn.update()
-        # print("Update time: ", time.time()-st)
+
+        # Returning loss
         return loss
         
     def get_positions(self, state):
@@ -362,8 +314,6 @@ class PongDQL():
             paddle_pixels = cp.nonzero(observation_frame == 121)
             num_paddle = len(paddle_pixels[0])
         
-        
-
         if num_paddle == 0:
             
             plt.imshow(observation_frame, cmap="gray")
@@ -392,9 +342,6 @@ class PongDQL():
 
     def state_to_data(self,state,prev_state):
         # Extracts all the necessary information from the state
-        # Debug log
-        # print("Before: ", state.shape)
-
              
         # Positions of paddle and ball
         paddle_pos, ball_pos = self.get_positions(state)
@@ -403,54 +350,13 @@ class PongDQL():
         if(ball_pos == (200,200) or prev_ball_pos == (200,200)):
             ball_absolute_velocity = 0
             ball_directed_velocity = cp.array([0,0])
-            #ball_direction = cp.array([0,0])
         else:
             ball_directed_velocity = cp.array(ball_pos)-cp.array(prev_ball_pos)
             ball_absolute_velocity = cp.linalg.norm(ball_directed_velocity)
             if (ball_absolute_velocity == 0):
-                #ball_direction = cp.array([0,0])
                 ball_directed_velocity = cp.array([0,0])
-            # else:
-            #     ball_direction = ball_directed_velocity/ball_absolute_velocity
 
-                # rounding
-                # ball_direction = cp.floor(ball_direction*10)/10
-
-        # No ball
-        # if (ball_direction[0] != 0 or ball_direction[1] != 0):
-        #     print(ball_direction)
-        # else:
-        #     if (random.random()<0.01):
-        #         plt.imshow(state[34:193], cmap="gray")
-        #         plt.colorbar()
-        #         plt.show()
-
-        #         plt.imshow(state, cmap="gray")
-        #         plt.colorbar()
-        #         plt.show()
-        
-        # Debug log
-        # if (random.random()<0.01):
-        #     print("Paddle pos: ", paddle_pos)
-        #     print("Ball previous position: ", prev_ball_pos[0], prev_ball_pos[1])
-        #     print("Ball position: ", ball_pos[0], ball_pos[1])
-        #     print("Ball Velocity: ", ball_directed_velocity[0], ball_directed_velocity[1])
-        #     print("")
-        #     print("")
-        #     plt.figure(1)
-        
-        #     # Plot rewards in every episode
-        #     plt.subplot(221)
-        #     plt.imshow(prev_state[34:193], cmap="gray")
-        #     plt.colorbar()
-
-        #     plt.subplot(222)
-        #     plt.imshow(state[34:193], cmap="gray")
-        #     plt.colorbar()
-        #     plt.show()
-
-        # if (random.random()<0.01):
-        #     print("Ball Velocity: ", ball_directed_velocity[0], ball_directed_velocity[1])
+        # Return the data
         return paddle_pos, ball_pos[0], ball_pos[1], ball_directed_velocity[0], ball_directed_velocity[1]
 
     def state_to_dqn_input(self, state, prev_state):
@@ -461,6 +367,8 @@ class PongDQL():
         return  preprocessed_state
 
     def reward_scheduler(self, state, reward, action):
+        # Function for setting custom rewards
+
 
         # reward for scoring a point
         if(reward == 1):
@@ -477,12 +385,6 @@ class PongDQL():
         if (paddle_ball_distance == 0):
             paddle_ball_distance = 0.5
 
-        # Debug log
-        # if random.random() < 0.01:
-        #     print(paddle_ball_distance)
-        #     plt.imshow(state, cmap="gray")
-        #     plt.colorbar()
-        #     plt.show()
 
         if (paddle_ball_distance <= 20 and ball_pos[0]<140):
             reward += 0.2/(paddle_ball_distance**2)
@@ -517,20 +419,6 @@ class PongDQL():
         encoded = cp.concatenate((vector_paddle_pos,vector_ball_x,vector_ball_y,vector_ball_directed_velocity_x,vector_ball_directed_velocity_y))
 
         return encoded
-
-        # # Debug log 
-        # if (random.random()<1):      
-        #     print("Light values: ", cp.unique(observation_frame))
-        #     # print(observation_frame[observation_frame == 147].shape)
-        #     # print(len(cp.where(observation_frame == 147)))
-        #     # print(cp.where(observation_frame == 147)[0].shape)
-        #     # print(cp.where(observation_frame == 147)[1].shape)
-        #     # print(cp.where(observation_frame == 147))
-        
-        #     plt.imshow(observation_frame, cmap="gray")
-        #     plt.colorbar()
-        #     plt.show()
-        #     print()
 
         
 
@@ -586,22 +474,6 @@ class PongDQL():
                 # Move to the next state
                 state = new_state
             
-            while (len(cp.nonzero(state[35:195] == 236)[0]) == 0):
-                # Until the ball appears, we stand still
-                action =  0
-            
-                # Execute action
-                new_state,reward,_,_,_ = env.step(action+2) # We map the actions 0-1 to 2-3
-            
-                # Update previous state memory
-                previous_state.append(state)
-
-                rewards += reward
-
-                # Move to the next state
-                state = new_state
-                print("No ball")
-            
 
             # Agent plays 
             while(not terminated and not truncated):  
@@ -609,15 +481,12 @@ class PongDQL():
                 # Preprocess state
                 preprocessed_frame = self.state_to_dqn_input(state,previous_state[0])
 
-                # Debug log
-                # if (random.random()<0.05):
-                #     print("State: ", preprocessed_frame)
+
 
                 # Select best action   
                 action = policy_dqn.forward(preprocessed_frame).argmax().item()
                 
-                # Debug log
-                # print("Chosen action: ", action)
+
 
                 # Execute action
                 state,reward,terminated,truncated,_ = env.step(action+2) # We map the actions 0-1 to 2-3
@@ -650,7 +519,7 @@ if __name__ == '__main__':
     
     
     render_training = None # set to 'human' to see the training on a gaming screen
-    render_testing = None # set to 'human' to see the testing on a gaming screen
+    render_testing = 'human' # set to 'human' to see the testing on a gaming screen
     test_run_number = 10 # How often we let the agent show what it learned
 
     # Choice of model
@@ -669,9 +538,11 @@ if __name__ == '__main__':
     activation_functions = [ly.Relu, ly.LeakyRelu, ly.Elu, ly.Selu, ly.Sigmoid,  ly.Sigmoid2, ly.Swish, ly.Tanh, ly.Atanh, ly.Sinusoid, ly.Cosinusoid, ly.Gaussian, ly.Softplus, ly.Identity, ly.Prelu]
     activation_name = activation_functions[0]
 
-    hidden_layer_size = 580 #580 # default: 580
-    epoch_number = 2_000 # default: 2_000?
+    hidden_layer_size = 580 #default: 580
+    epoch_number = 50 # default: 2_000?
 
+
+    # Measure time
     total_start = time.time()
 
 
