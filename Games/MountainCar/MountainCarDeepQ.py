@@ -8,15 +8,25 @@ import time
 import tqdm
 
 import sys
+import os
 
-# setting path
-sys.path.append('../shared_files')
+# get directory and shared_files
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SHARED_DIR = os.path.join(SCRIPT_DIR, '..', 'shared_files')
+
+# make sure path exists
+SHARED_DIR = os.path.abspath(SHARED_DIR)
+
+
+if SHARED_DIR not in sys.path:
+    sys.path.insert(0, SHARED_DIR)  # insert path into sys.path with high priority
 
 # file imports
 import utils_numpy as ut 
 import layers_numpy as ly
 from networks_numpy import create_network
 from run_logger import RunLogger
+
 
 
 
@@ -27,6 +37,7 @@ class MountainCarDQL():
     network_sync_rate = 50_000          # number of steps the agent takes before syncing the policy and target network, default: 10
     replay_memory_size = 10_000       # size of replay memory, default: 1_000
     mini_batch_size = 256        # size of the training data set sampled from the replay memory, default: 32
+    eval_interval = 10
 
     
     num_divisions = 15
@@ -37,9 +48,21 @@ class MountainCarDQL():
 
 
     # Train the MountainCar environment
-    def train(self, episodes, render = None, model_name = "three_layers", optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Relu, hidden_layer_size = 16):
+    def train(self, episodes, render = None, model_name = "three_layers", optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Tanh, hidden_layer_size = 16):
 
-        # Create MountainCar instance
+        # initialize the current config for logging
+        config = {
+            "model_name": model_name,
+            "optimizer": optimizer.__name__ if hasattr(optimizer, "__name__") else str(optimizer),
+            "initializator": initializator.__name__ if hasattr(initializator, "__name__") else str(initializator),
+            "activation function": activation.__name__ if hasattr(activation, "__name__") else str(activation),
+            "hidden_layer_size": hidden_layer_size,
+            "seed": getattr(self, "seed", 0),
+            "output_dir": getattr(self, "output_dir", "results"),
+            "episodes": episodes,
+        }
+        
+        logger = RunLogger(config, output_dir=config.get("output_dir", "results"))
 
         
         # Creating environment
@@ -47,6 +70,10 @@ class MountainCarDQL():
             "MountainCar-v0", 
             render_mode=render            
         )
+        
+        env.reset(seed=getattr(self, "seed", 0))         
+        env.action_space.seed(getattr(self, "seed", 0)) 
+                
         loss_list = []   
 
         # Initializing constants
@@ -85,19 +112,13 @@ class MountainCarDQL():
         epsilon_history = []
 
         # Track number of steps taken. Used for syncing policy => target network.
-        step_count=0
+        step_count = 0
         
-        best_rewards=-1_000
+        best_rewards = -1_000
         highest_height = -10
         terminated_sum = 0
 
         for i in tqdm.tqdm(range(episodes)):
-            # For debugging: If we print stuff during epochs, it breaks the progress bar
-            # if(i%500 == 0):
-            #     print("Epoch: ", i)
-            
-
-
             state = env.reset()[0]  # Initialize to state 0
             terminated = False      # True when agent reaches goal
             truncated = False       # True when steps exceed limit
@@ -125,9 +146,6 @@ class MountainCarDQL():
                       
                 # Keep track of the rewards collected per episode.
                 rewards_per_episode[i] += reward
-
-                # Debug log
-                # print(rewards_per_episode[i])
                 
                 # Save experience into memory
                 memory.append((state, action, new_state, reward, terminated)) 
@@ -150,12 +168,14 @@ class MountainCarDQL():
             # Keep track of highest reward
             if rewards_per_episode[i]>best_rewards:
                 best_rewards = rewards_per_episode[i]
-                #print(f'Best rewards so far: {best_rewards}')
                 
+            training_happened = False
+            
             # Check if enough experience has been collected (and if at least 1 reward has been collected)
             if (len(memory) > self.mini_batch_size): 
                 mini_batch = memory.sample(self.mini_batch_size)
                 loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn))        
+                training_happened = True
 
                 # Decay epsilon
                 epsilon = max(epsilon - 1/episodes, 0.00) # possible augmentation: set a minimum epsilon (i.e. change to 0.1)
@@ -167,7 +187,24 @@ class MountainCarDQL():
                     target_dqn.set_weights(policy_dqn.get_weights())
 
                     step_count=0
-
+            # logging after optimize, so the loss belongs to this episode
+            current_loss = loss_list[-1] if training_happened else float("nan")
+            logger.log_episode(float(rewards_per_episode[i]), float(current_loss))
+            
+            # greedy evaluation
+            eval_interval = getattr(self, "eval_interval", None)
+            if eval_interval and i % eval_interval == 0:
+                eval_env = gym.make("MountainCar-v0", render_mode=render)
+                eval_reward = self.evaluate_greedy(policy_dqn, eval_env, num_eval_episodes=10)
+                logger.log_eval(i, eval_reward)
+                eval_env.close() 
+            
+        # Close environment
+        env.close()
+                
+        logger.save()
+        print(f"[train] Training completed. Results saved to {config['output_dir']}")
+                        
 
         # Saving the model
         with open("mountaincar_dql.pkl", 'wb') as file:
@@ -177,8 +214,6 @@ class MountainCarDQL():
         print("Highest height: ", highest_height)
         print("Number of successes in training: ", terminated_sum)
 
-        # Close environment
-        env.close()
 
 
         # Create new graph 
@@ -343,6 +378,19 @@ class MountainCarDQL():
         # Returning whether the agent fulfilled their goal
         return succesful
 
+    def evaluate_greedy(self, policy_dqn, env, num_eval_episodes=10):
+        rewards = []
+        for _ in range(num_eval_episodes):
+            state = env.reset()[0]
+            total = 0
+            terminated = False
+            truncated = False
+            while not (terminated or truncated):
+                action = policy_dqn.forward(self.state_to_dqn_input(state)).argmax().item()
+                state, reward, terminated, truncated, _ = env.step(action)
+                total += reward
+            rewards.append(total)
+        return np.mean(rewards)
     
 if __name__ == '__main__':
     # Initializing
@@ -362,15 +410,15 @@ if __name__ == '__main__':
     
     # Choice of weight initialization
     weight_initializations = [ut.xavier_initialization, ut.old_xavier_initialization, ut.xavier_initialization_uniform, ut.xavier_initialization_normal, ut.simple_initialization, ut.kaiming_initialization] 
-    initializator_name = weight_initializations[1]
+    initializator_name = weight_initializations[0]
     
     # Choice of activation function
     activation_functions = [ly.Relu, ly.LeakyRelu, ly.Elu, ly.Selu, ly.Sigmoid,  ly.Sigmoid2, ly.Swish, ly.Tanh, ly.Atanh, ly.Sinusoid, ly.Cosinusoid, ly.Gaussian, ly.Softplus, ly.Identity, ly.Prelu]
-    activation_name = activation_functions[0]
+    activation_name = activation_functions[7]
 
     # Training parameters
     number_of_experiments = 1 # How many NNs we train
-    epoch_number = 2_000 # default: 1_000 
+    epoch_number = 500 # default: 1_000 
 
     total_start = time.time()
 
@@ -390,6 +438,15 @@ if __name__ == '__main__':
         # Initialize training class
         mountain_car = MountainCarDQL()
         
+        
+        # give each experiment a distinct seed and set the output dir
+        mountain_car.seed = int(i)
+        mountain_car.output_dir = "results"
+
+        # seed the RNGs for reproducibility
+        random.seed(mountain_car.seed)
+        np.random.seed(mountain_car.seed)
+                
         # Training 
         if(testing_only == False):
             mountain_car.train(

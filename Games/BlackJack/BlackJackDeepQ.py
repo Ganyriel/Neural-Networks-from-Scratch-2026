@@ -8,9 +8,18 @@ import time
 import tqdm
 
 import sys
+import os
 
-# setting path
-sys.path.append('../shared_files')
+# get directory and shared_files
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SHARED_DIR = os.path.join(SCRIPT_DIR, '..', 'shared_files')
+
+# make sure path exists
+SHARED_DIR = os.path.abspath(SHARED_DIR)
+
+
+if SHARED_DIR not in sys.path:
+    sys.path.insert(0, SHARED_DIR)  # insert path into sys.path with high priority
 
 # file imports
 import utils_numpy as ut 
@@ -27,6 +36,7 @@ class BlackJackDQL():
     network_sync_rate = 10          # number of steps the agent takes before syncing the policy and target network, default: 10
     replay_memory_size = 1_000       # size of replay memory, default: 1_000
     mini_batch_size = 32          # size of the training data set sampled from the replay memory, default: 32
+    eval_interval = 10        
 
     # Initializing number of states
     num_states = 0
@@ -34,12 +44,30 @@ class BlackJackDQL():
     # Train the BlackJack environment
     def train(self, episodes, render = None, model_name = "three_layers", optimizer = ut.Adam, initializator = ut.xavier_initialization, activation = ly.Relu, hidden_layer_size = 16):
 
-        # Create BlackJack instance
-
+        # initialize the current config for logging
+        config = {
+            "model_name": model_name,
+            "optimizer": optimizer.__name__ if hasattr(optimizer, "__name__") else str(optimizer),
+            "initializator": initializator.__name__ if hasattr(initializator, "__name__") else str(initializator),
+            "activation function": activation.__name__ if hasattr(activation, "__name__") else str(activation),
+            "hidden_layer_size": hidden_layer_size,
+            "seed": getattr(self, "seed", 0),
+            "output_dir": getattr(self, "output_dir", "results"),
+            "episodes": episodes,
+        }
+        
+        logger = RunLogger(config, output_dir=config.get("output_dir", "results"))
+        
         
         # Creating environment
         env = gym.make('Blackjack-v1', natural=False, sab=False)
+        
+        env.reset(seed=getattr(self, "seed", 0))         
+        env.action_space.seed(getattr(self, "seed", 0)) 
+        
         loss_list = []   
+        
+        
 
         # Initializing constants
         num_states = 0
@@ -113,10 +141,12 @@ class BlackJackDQL():
                 rewards_per_episode[i] += reward
 
             
+            training_happened = False
             # Check if enough experience has been collected and if at least 1 reward has been collected
             if (len(memory) > self.mini_batch_size and np.max(rewards_per_episode) > 0): 
                 mini_batch = memory.sample(self.mini_batch_size)
-                loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn))        
+                loss_list.append(self.optimize(mini_batch, policy_dqn, target_dqn))   
+                training_happened = True         
 
                 # Decay epsilon
                 epsilon = max(epsilon - 1/episodes, 0.00) # possible augmentation: set a minimum epsilon (i.e. change to 0.1)
@@ -128,20 +158,31 @@ class BlackJackDQL():
                     target_dqn.set_weights(policy_dqn.get_weights())
 
                     step_count=0
+            
+             # logging after optimize, so the loss belongs to this episode
+            current_loss = loss_list[-1] if training_happened else float("nan")
+            logger.log_episode(float(rewards_per_episode[i]), float(current_loss))
+            
+            # greedy evaluation
+            eval_interval = getattr(self, "eval_interval", None)
+            if eval_interval and i % eval_interval == 0:
+                eval_env = gym.make('Blackjack-v1', natural=False, sab=False)
+                eval_reward = self.evaluate_greedy(policy_dqn, eval_env, num_eval_episodes=10)
+                logger.log_eval(i, eval_reward)
+                eval_env.close() 
 
         # Close environment
         env.close()
 
-        # # Debugging logs:
-        # # Log how often the agent won the game
-        # print("Reached the goal this many times: ", (rewards_per_episode > 0).sum())
-
+        logger.save()
+        print(f"[train] Training completed. Results saved to {config['output_dir']}")
+        
         # Saving the model
         with open('policy_dqn.pkl', 'wb') as file:
             pickle.dump(policy_dqn.get_weights(), file)
         
 
-        # Create new graph 
+        # Create new graph for plotting only this run
         fig, ax = plt.subplots(2, 2)
     
         # Plot rewards in every episode
@@ -305,7 +346,20 @@ class BlackJackDQL():
 
         # Returning whether the agent fulfilled their goal
         return succesful,failure
-
+    
+    def evaluate_greedy(self, policy_dqn, env, num_eval_episodes=10):
+        rewards = []
+        for _ in range(num_eval_episodes):
+            state = env.reset()[0]
+            total = 0
+            terminated = False
+            truncated = False
+            while not (terminated or truncated):
+                action = policy_dqn.forward(self.state_to_dqn_input(state, self.num_states)).argmax().item()
+                state, reward, terminated, truncated, _ = env.step(action)
+                total += reward
+            rewards.append(total)
+        return np.mean(rewards)
     
 if __name__ == '__main__':
     # Initializing
@@ -354,6 +408,14 @@ if __name__ == '__main__':
         # Initialize training class
         black_jack = BlackJackDQL()
         
+        # give each experiment a distinct seed and set the output dir
+        black_jack.seed = int(i)
+        black_jack.output_dir = "results"
+
+        # seed the RNGs for reproducibility
+        random.seed(black_jack.seed)
+        np.random.seed(black_jack.seed)
+        
         # Training 
         if(testing_only == False):
             black_jack.train(
@@ -365,11 +427,6 @@ if __name__ == '__main__':
                 optimizer = optimizer_name,
                 activation = activation_name
                 )
-
-        # Performance logging:
-        # # Measuring time
-        # end = time.time()
-        # print("Training took: ", end - start)
 
         # Testing and keeping track of successes
         proportion_of_successes, proportion_of_losses = black_jack.test(test_run_number,

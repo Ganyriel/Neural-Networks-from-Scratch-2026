@@ -140,16 +140,15 @@ class FrozenLakeDQL():
                 # Keep track of the rewards collected per episode.
                 rewards_per_episode[i] += reward
 
-            current_loss = loss_list[-1] if loss_list else float("nan")
-            logger.log_episode(float(rewards_per_episode[i]), float(current_loss))
-        
-
+            
+            training_happened = False
             
             # Check if enough experience has been collected and if at least 1 reward has been collected
             if (len(memory) > self.mini_batch_size and np.max(rewards_per_episode) > 0): 
                 mini_batch = memory.sample(self.mini_batch_size)
                 loss = self.optimize(mini_batch, policy_dqn, target_dqn)
-                loss_list.append(loss)        
+                loss_list.append(loss)
+                training_happened = True        
    
 
                 # Decay epsilon
@@ -162,7 +161,7 @@ class FrozenLakeDQL():
                     step_count=0
                     
             # logging after optimize, so the loss belongs to this episode
-            current_loss = loss_list[-1] if loss_list else 0.0
+            current_loss = loss_list[-1] if training_happened else float("nan")
             logger.log_episode(float(rewards_per_episode[i]), float(current_loss))
             
             # greedy evaluation
@@ -179,19 +178,12 @@ class FrozenLakeDQL():
         logger.save()
         print(f"[train] Training completed. Results saved to {config['output_dir']}")
 
-        # # Debugging logs:
-        # # Log how often the agent won the game
-        # print("Reached the goal this many times: ", (rewards_per_episode > 0).sum())
-
         # Saving the model
         with open('policy_dqn.pkl', 'wb') as file:
             pickle.dump(policy_dqn.get_weights(), file)
         
 
-        # Debugging Logs: printing the q-values of the trained network
-        # self.print_dqn(policy_dqn)
-
-        # Create new graph 
+        # Create new graph for plotting only this run. 
         plt.figure(1)
         
         # Plot rewards in every episode
@@ -199,11 +191,6 @@ class FrozenLakeDQL():
         plt.plot(rewards_per_episode)
         plt.title("Rewards per episode")
 
-        # Debug log: For plotting epsilon
-        # Plot epsilon decay (Y-axis) vs episodes (X-axis)
-        # plt.subplot(222) # plot on a 2 row x 2 col grid, at cell 2
-        # plt.plot(epsilon_history)
-        # plt.title("Epsilon in each episode")
         
         # Plot average rewards (Y-axis) vs episodes (X-axis)
         plt.subplot(222)
@@ -217,11 +204,6 @@ class FrozenLakeDQL():
         plt.subplot(223)
         plt.plot(loss_list)
         plt.title("Loss per episode")
-
-        # # Plot the learning rate
-        # plt.subplot(224)
-        # plt.plot(learning_rate_history)
-        # plt.title("Learning rate in each episode")
 
         # Save plots
         plt.savefig('frozen_lake_dql.png')
@@ -370,7 +352,6 @@ class FrozenLakeDQL():
             print() # Print a new line for every state
     
     def evaluate_greedy(self, policy_dqn, env, num_eval_episodes=10):
-        """to evaluate complete greedy (no exploration)"""
         rewards = []
         for _ in range(num_eval_episodes):
             state = env.reset()[0]
@@ -454,10 +435,7 @@ if __name__ == '__main__':
                 optimizer = optimizer_name,
                 activation = activation_name)
 
-        # Performance logging:
-        # # Measuring time
-        # end = time.time()
-        # print("Training took: ", end - start)
+        
 
         # Testing and keeping track of successes
         sum_of_successes += frozen_lake.test(test_run_number,
@@ -469,10 +447,7 @@ if __name__ == '__main__':
                                             optimizer = optimizer_name,
                                             activation = activation_name)
         
-        # Debug logging:
-        # print("Successes so far: ", sum_of_successes)
-        # print("Proportion so far: ", sum_of_successes/i) 
-        # print("")
+
 
     
     print("Number of successes: ", sum_of_successes)
